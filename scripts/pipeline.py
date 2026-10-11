@@ -310,7 +310,7 @@ def run(args):
             retries = [ep['id'] for ep in items if ep['id'] in assigned and ep['available'] and state['episodes'][ep['id']].get('status') != 'complete']
             state['batches'][date] = {'ids': [ep['id'] for ep in eligible[:args.limit]], 'retry_ids': retries, 'started_at': now()}
         selected_ids = set(state['batches'][date]['ids'] + state['batches'][date].get('retry_ids', []))
-        selected = [ep for ep in items if ep['id'] in selected_ids]
+        selected = [ep for ep in items if ep['id'] in selected_ids and not state['episodes'][ep['id']].get('delegated_profile')]
         retry_ids = set(state['batches'][date].get('retry_ids', []))
         selected.sort(key=lambda ep: ep['id'] not in retry_ids)
         write_json(STATE_FILE, state)

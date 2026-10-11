@@ -9,3 +9,4 @@ __pycache__/
 state/progress.json
 state/progress.json.tmp
 .impeccable/
+state/accounts/
