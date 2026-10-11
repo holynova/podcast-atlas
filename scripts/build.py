@@ -19,7 +19,7 @@ def clean_title(t): return __import__('re').sub(r'^No\.\d+\s*[^\u4e00-\u9fffA-Za
 def cover(ep):
     path = ROOT / 'assets/illustrations' / ep['id'] / '0.webp'
     if path.exists(): return f'<img src="/assets/illustrations/{ep["id"]}/0.webp" alt="{E(clean_title(ep["title"]))}：漫画幻灯片封面" loading="lazy" width="960" height="540">'
-    return '<div class="cover-pending"><span>图文制作中</span><small>等待漫画幻灯片生成</small></div>'
+    return '<div class="cover-pending"><span>漫画配图制作中</span><small>等待漫画幻灯片生成</small></div>'
 
 def card(ep):
     a = ARTICLES.get(ep['id']); ready = bool(a)
@@ -42,7 +42,7 @@ def index():
         brief = {'中国互联网故事':'从中关村的第一批创业者，到我们每天使用的平台。','苹果公司简史':'从车库起步，走过低谷，重新定义个人电脑与手机。','中国股市往事':'交易所怎样诞生，市场又怎样一步步走到今天。','硅谷神话':'技术、资本与人物，怎样共同写下硅谷的故事。','芯片江湖':'一枚小芯片背后的产业、竞争与漫长追赶。','任天堂往事':'游戏机、好游戏，以及始终不变的玩家之心。'}.get(topic,'把相关故事放在一起，沿着一条清晰的线读下去。')
         series += f'<a class="series-item" href="{topic_url(topic)}"><span class="series-no">0{i+1}</span><div><h3>{E(topic)}</h3><p>{E(brief)}</p></div><span class="series-count">{n} / {len(eps)} 集<br><b>→</b></span></a>'
     cards = ''.join(card(ep) for ep in QUEUE if ep['id'] in ARTICLES)
-    body = f'''<section class="hero wrap"><div class="hero-copy"><p class="eyebrow">听过的故事，值得看懂。</p><h1>把长故事，<br>读成一张<span>清晰的地图。</span></h1><p class="hero-dek">跟着人物、时间和转折，读懂商业与生活。<br>从一集播客开始，让知识慢慢连成线。</p><div class="hero-actions"><a class="button" href="#library">开始阅读 <span>↗</span></a><a class="text-link" href="#series">沿专题读下去 →</a></div><div class="hero-stats"><span><strong>{completed:02d}</strong> 已整理单集</span><span><strong>{available}</strong> 待探索故事</span><span><strong>10</strong> 每日制作目标</span></div></div>{hero_visual}</section><section id="series" class="wrap section"><div class="section-heading"><div><p class="eyebrow">FOLLOW THE THREAD</p><h2>沿着一个专题，读下去。</h2></div><p>按故事顺序串起来，背景和因果就清楚了。</p></div><div class="series-list">{series}</div></section><section id="library" class="wrap section"><div class="section-heading"><div><p class="eyebrow">THE READING ROOM</p><h2>今天，想读哪个故事？</h2></div><a href="/progress/" class="text-link">查看制作计划 →</a></div><div class="library-tools"><div class="filters" role="group" aria-label="按播客筛选"><button class="active" data-filter="all" aria-pressed="true">全部</button><button data-filter="半拿铁" aria-pressed="false">半拿铁</button><button data-filter="知行小酒馆" aria-pressed="false">知行小酒馆</button></div><label class="search"><span>搜索</span><input id="search" type="search" placeholder="人物、公司或专题" aria-label="搜索已制作单集"></label></div><div class="episode-grid">{cards}</div><p class="empty" id="empty" hidden>还没有匹配的已制作图解，换个关键词试试。</p>{'<p class="notice">首批图解正在生成，完成后会出现在这里。</p>' if not cards else ''}</section><section class="reading-note wrap"><span>一集，两种读法。</span><p>网页帮你理清故事，漫画幻灯片帮你记住画面。<br>每集都附原节目入口，想听更多细节时，随时回去。</p><a href="/progress/">看看下一批做什么 →</a></section>'''
+    body = f'''<section class="hero wrap"><div class="hero-copy"><p class="eyebrow">听过的故事，值得看懂。</p><h1>把长故事，<br>读成一张<span>清晰的地图。</span></h1><p class="hero-dek">跟着人物、时间和转折，读懂商业与生活。<br>从一集播客开始，让知识慢慢连成线。</p><div class="hero-actions"><a class="button" href="#library">开始阅读 <span>↗</span></a><a class="text-link" href="#series">沿专题读下去 →</a></div><div class="hero-stats"><span><strong>{completed:02d}</strong> 已整理单集</span><span><strong>{available}</strong> 待探索故事</span><span><strong>10</strong> 每日制作目标</span></div></div>{hero_visual}</section><section id="series" class="wrap section"><div class="section-heading"><div><p class="eyebrow">FOLLOW THE THREAD</p><h2>沿着一个专题，读下去。</h2></div><a class="text-link" href="/topics/">查看全部专题 →</a></div><div class="series-list">{series}</div></section><section id="library" class="wrap section"><div class="section-heading"><div><p class="eyebrow">THE READING ROOM</p><h2>今天，想读哪个故事？</h2></div><a href="/progress/" class="text-link">查看制作计划 →</a></div><div class="library-tools"><div class="filters" role="group" aria-label="按播客筛选"><button class="active" data-filter="all" aria-pressed="true">全部</button><button data-filter="半拿铁" aria-pressed="false">半拿铁</button><button data-filter="知行小酒馆" aria-pressed="false">知行小酒馆</button></div><label class="search"><span>搜索</span><input id="search" type="search" placeholder="人物、公司或专题" aria-label="搜索已制作单集"></label></div><div class="episode-grid">{cards}</div><p class="empty" id="empty" hidden>还没有匹配的已制作图解，换个关键词试试。</p>{'<p class="notice">首批图解正在生成，完成后会出现在这里。</p>' if not cards else ''}</section><section class="reading-note wrap"><span>一集，两种读法。</span><p>网页帮你理清故事，漫画幻灯片帮你记住画面。<br>每集都附原节目入口，想听更多细节时，随时回去。</p><a href="/progress/">看看下一批做什么 →</a></section>'''
     return shell('把故事读成地图', body, home=True)
 
 def timestamp_seconds(s):
@@ -88,6 +88,14 @@ def topic_page(topic):
         rows += f'<li class="topic-row"><span class="series-no">{ep["order"]:02d}</span><div><h2>{name}</h2><p>{E(ep["title"])} · {ep["date"]}</p></div><span class="status {"ready" if a else ""}">{status}</span></li>'
     return shell(topic, f'<section class="wrap topic-intro"><a class="breadcrumb" href="/#series">← 全部专题</a><p class="eyebrow">FOLLOW THE THREAD / {n} 集已整理</p><h1>{E(topic)}</h1><p class="article-dek">按故事顺序阅读。已制作的集数可以打开图文讲解，后续内容会逐步补齐。</p><ol class="topic-episodes">{rows}</ol></section>')
 
+def all_topics():
+    rows = ''
+    for i, topic in enumerate(TOPICS):
+        eps = [ep for ep in QUEUE if ep['topic'] == topic]
+        n = sum(ep['id'] in ARTICLES for ep in eps)
+        rows += f'<a class="series-item" href="{topic_url(topic)}"><span class="series-no">{i+1:02d}</span><div><h3>{E(topic)}</h3><p>{"按故事系列顺序制作与阅读" if topic != "单集精选" else "两档播客其他单集，按发布时间从新到旧"}</p></div><span class="series-count">{n} / {len(eps)} 集<br><b>→</b></span></a>'
+    return shell('全部专题', f'<section class="wrap topic-intro"><a class="breadcrumb" href="/">← 首页</a><p class="eyebrow">FIND YOUR THREAD</p><h1>选一条线，把故事连起来。</h1><p class="article-dek">先制作完整专题，再从较新的单集往回读。未制作和缺失文稿的单集都保留在目录中。</p><div class="series-list">{rows}</div></section>')
+
 def progress_page():
     n = len(ARTICLES); slides = len(list((ROOT / 'assets/slides').glob('*.pdf')))
     missing = sum(not ep['available'] for ep in QUEUE)
@@ -104,12 +112,12 @@ def main():
     DIST.mkdir()
     for name in ['style.css', 'app.js', 'favicon.svg']: shutil.copyfile(ROOT / name, DIST / name)
     if (ROOT / 'assets').exists(): shutil.copytree(ROOT / 'assets', DIST / 'assets')
-    save('index.html', index()); save('progress/index.html', progress_page())
+    save('index.html', index()); save('progress/index.html', progress_page()); save('topics/index.html', all_topics())
     for topic in TOPICS: save(topic_url(topic).strip('/') + '/index.html', topic_page(topic))
     for ep in QUEUE:
         if ep['id'] in ARTICLES: save(article_url(ep['id']).strip('/') + '/index.html', episode(ep, ARTICLES[ep['id']]))
     save('404.html', shell('这一页还没画出来', '<section class="wrap topic-intro"><h1>这一页，还没画出来。</h1><p>可能是链接有误，或故事尚未制作。</p><a class="button" href="/">回到首页 →</a></section>'))
-    urls = ['/', '/progress/'] + [topic_url(t) for t in TOPICS] + [article_url(eid) for eid in ARTICLES]
+    urls = ['/', '/progress/', '/topics/'] + [topic_url(t) for t in TOPICS] + [article_url(eid) for eid in ARTICLES]
     save('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + ''.join(f'<url><loc>{CFG["domain"]}{u}</loc></url>' for u in urls) + '</urlset>')
     save('robots.txt', f'User-agent: *\nAllow: /\nSitemap: {CFG["domain"]}/sitemap.xml\n')
     print(f'Built {len(ARTICLES)} articles, {len(TOPICS)} topics → {DIST}')

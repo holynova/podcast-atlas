@@ -19,6 +19,8 @@
 cd /Users/sym/code/podcast-atlas
 python3 scripts/pipeline.py run --limit 10 --wait-minutes 25
 python3 scripts/pipeline.py status
+# 只收取已提交的结果，不发起新生成：
+python3 scripts/pipeline.py collect --wait-minutes 10
 ```
 
 程序使用文件锁避免并发、原子写入进度；同日重复执行复用已选10集。先上传带时间戳逐字稿，再逐集指定source ID生成详细中文漫画幻灯片和结构化讲解。生成成功后下载并验证PDF，导出封面及内页WebP，构建静态网站。每集分别保存source、article、slides、download、publication状态。原始上传暂存文件在被忽略的work目录。
@@ -48,7 +50,7 @@ npm run deploy:check
 
 首次发布还需要真实截图、二维码、双语README、GitHub Homepage、Umami以及xiaosang.cc作品集独立部署与回读验证。每日新增内容已获发布授权，使用本地Wrangler，不添加Git或CI自动部署。
 
-HTTPS验证首页、单集深层路径、CSS、JS、PDF和图片后，在state/progress.json记录源码SHA、版本、部署ID、上线集数和publication_status=verified。作品集有效条目后续复用。全部现有文稿完成后关闭定时任务。
+部署后执行 `python3 scripts/record_deployment.py --deployment-id <真实部署ID>`，实际HTTPS验证首页、单集深层路径、CSS、JS、PDF和图片后，才在state/progress.json记录源码SHA、版本、部署ID、上线集数和publication_status=verified。作品集有效条目后续复用。全部现有文稿完成后关闭定时任务。
 
 ## 本地文件
 
@@ -61,4 +63,4 @@ HTTPS验证首页、单集深层路径、CSS、JS、PDF和图片后，在state/p
 
 ## 外部状态
 
-每日自动化已创建（ID：automation），每天13:00触发当前聊天。Cloudflare需要有效Wrangler登录；若登录页面过期，重新运行`npx wrangler login`并请用户完成登录。
+每日自动化已创建（ID：automation），每天13:00触发当前聊天。Cloudflare认证已核实有效。如网络导致认证刷新失败，先使用 `NODE_OPTIONS=--dns-result-order=ipv4first npx wrangler whoami` 重试；仅在确认凭据无效时请用户完成登录。

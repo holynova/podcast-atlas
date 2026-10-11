@@ -1,0 +1,35 @@
+"""Only mark publication verified after real HTTPS checks pass."""
+import argparse, fcntl, json, pathlib, subprocess, urllib.request
+from pipeline import now, write_json
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+p = argparse.ArgumentParser(); p.add_argument('--deployment-id', required=True); args = p.parse_args()
+config = json.loads((ROOT / 'config.json').read_text()); domain = config['domain']
+version = json.loads((ROOT / 'package.json').read_text())['version']
+sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+branch = subprocess.check_output(['git', 'branch', '--show-current'], cwd=ROOT, text=True).strip()
+if branch != 'main': raise SystemExit('Publication must use main')
+remote_sha = subprocess.check_output(['git', 'ls-remote', 'origin', 'refs/heads/main'], cwd=ROOT, text=True).split()[0]
+if sha != remote_sha: raise SystemExit('Local main is not the pushed source state')
+def get(path, expected=None):
+    with urllib.request.urlopen(domain + path, timeout=30) as response:
+        data = response.read(); mime = response.headers.get_content_type()
+        if expected and mime != expected: raise RuntimeError(f'{path}: unexpected content type {mime}')
+        return data
+if ('v'+version).encode() not in get('/', 'text/html'): raise SystemExit('Live version mismatch')
+get('/style.css', 'text/css'); get('/app.js')
+verified = []
+for file in (ROOT / 'content').glob('*.json'):
+    article = json.loads(file.read_text()); eid = file.stem
+    if article['headline'].encode() not in get('/episodes/'+eid+'/', 'text/html'): raise RuntimeError('Live article mismatch: '+eid)
+    pdf = ROOT / 'assets/slides' / (eid + '.pdf')
+    if pdf.exists() and get('/assets/slides/'+eid+'.pdf', 'application/pdf')[:5] != b'%PDF-': raise RuntimeError('Bad live PDF')
+    cover = ROOT / 'assets/illustrations' / eid / '0.webp'
+    if cover.exists(): get('/assets/illustrations/'+eid+'/0.webp', 'image/webp')
+    verified.append(eid)
+with (ROOT / 'state/runner.lock').open('w') as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    state = json.loads((ROOT / 'state/progress.json').read_text())
+    state['deployments'].append({'at':now(),'source_sha':sha,'version':version,'worker':'podcast-atlas','domain':domain,'deployment_id':args.deployment_id,'verified_episode_ids':verified,'status':'verified'})
+    for eid in verified: state['episodes'][eid].update(publication_status='verified', published_sha=sha, published_at=now())
+    write_json(ROOT / 'state/progress.json', state)
+print(f'Verified {domain}: {len(verified)} articles, v{version}, source {sha}')
