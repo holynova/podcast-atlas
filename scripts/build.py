@@ -4,7 +4,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 DIST = ROOT / 'dist'
 CFG = json.loads((ROOT / 'config.json').read_text())
 VERSION = json.loads((ROOT / 'package.json').read_text())['version']
-STATE = json.loads((ROOT / 'state/progress.json').read_text())
 QUEUE = json.loads((ROOT / 'state/queue.json').read_text()) if (ROOT / 'state/queue.json').exists() else []
 ARTICLES = {p.stem: json.loads(p.read_text()) for p in (ROOT / 'content').glob('*.json')}
 E = lambda v: html.escape(str(v), quote=True)

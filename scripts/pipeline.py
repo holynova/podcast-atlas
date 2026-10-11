@@ -9,6 +9,18 @@ STATE_FILE = ROOT / 'state/progress.json'
 TZ = ZoneInfo(CONFIG['timezone'])
 
 def now(): return dt.datetime.now(TZ).isoformat(timespec='seconds')
+def network_env():
+    env = os.environ.copy()
+    if not any(env.get(k) for k in ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy']):
+        try:
+            settings = subprocess.run(['scutil','--proxy'],capture_output=True,text=True,timeout=5).stdout
+            if re.search(r'HTTPSEnable\s*:\s*1',settings):
+                host = re.search(r'HTTPSProxy\s*:\s*(\S+)',settings)
+                port = re.search(r'HTTPSPort\s*:\s*(\d+)',settings)
+                if host and port: env.update(HTTPS_PROXY='http://'+host[1]+':'+port[1], HTTP_PROXY='http://'+host[1]+':'+port[1])
+        except (FileNotFoundError,subprocess.TimeoutExpired): pass
+    return env
+
 def write_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(path.suffix + '.tmp')
@@ -49,7 +61,7 @@ def catalog():
     return out
 
 def cli(*args, timeout=300):
-    env = os.environ.copy()
+    env = network_env()
     env['NOTEBOOKLM_RATE_LIMIT_MAX_RETRIES'] = '0'
     binary = pathlib.Path(os.environ.get('NLM_BIN', '/Users/sym/.local/bin/nlm'))
     command = [str(binary)]
@@ -218,7 +230,7 @@ def collect_slides(state, ep, artifacts=None):
     if status not in ['completed', 'complete', 'ready', '3']: write_json(STATE_FILE, state); return False
     target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix('.part.pdf')
-    cli_result = subprocess.run(['/Users/sym/.local/bin/nlm', 'download', 'slide-deck', r['notebook_id'], '--id', r['artifact_id'], '--output', str(temp), '--no-progress'], capture_output=True, text=True, timeout=300)
+    cli_result = subprocess.run(['/Users/sym/.local/bin/nlm', 'download', 'slide-deck', r['notebook_id'], '--id', r['artifact_id'], '--output', str(temp), '--no-progress'], capture_output=True, text=True, timeout=300,env=network_env())
     if cli_result.returncode: raise RuntimeError(cli_result.stderr or cli_result.stdout)
     if not temp.exists() or temp.read_bytes()[:5] != b'%PDF-': raise ValueError('Downloaded slide is not a PDF')
     os.replace(temp, target); r['slide_status'] = 'downloaded'; r['pdf'] = 'assets/slides/' + target.name

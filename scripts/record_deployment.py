@@ -1,6 +1,6 @@
 """Only mark publication verified after real HTTPS checks pass."""
 import argparse, fcntl, json, pathlib, subprocess, urllib.request
-from pipeline import now, write_json
+from pipeline import now, write_json, network_env
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(); p.add_argument('--deployment-id', required=True); args = p.parse_args()
 config = json.loads((ROOT / 'config.json').read_text()); domain = config['domain']
@@ -8,10 +8,13 @@ version = json.loads((ROOT / 'package.json').read_text())['version']
 sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
 branch = subprocess.check_output(['git', 'branch', '--show-current'], cwd=ROOT, text=True).strip()
 if branch != 'main': raise SystemExit('Publication must use main')
-remote_sha = subprocess.check_output(['git', 'ls-remote', 'origin', 'refs/heads/main'], cwd=ROOT, text=True).split()[0]
+env = network_env()
+remote_sha = subprocess.check_output(['git', 'ls-remote', 'origin', 'refs/heads/main'], cwd=ROOT, text=True,env=env).split()[0]
 if sha != remote_sha: raise SystemExit('Local main is not the pushed source state')
+proxies = {kind: env.get(kind.upper()+'_PROXY') for kind in ['http','https'] if env.get(kind.upper()+'_PROXY')}
+opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
 def get(path, expected=None):
-    with urllib.request.urlopen(domain + path, timeout=30) as response:
+    with opener.open(domain + path, timeout=30) as response:
         data = response.read(); mime = response.headers.get_content_type()
         if expected and mime != expected: raise RuntimeError(f'{path}: unexpected content type {mime}')
         return data

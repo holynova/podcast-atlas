@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "build": "python3 scripts/build.py",
-    "dev": "wrangler dev --port 4173",
+    "dev": "python3 scripts/run_wrangler.py dev --port 4173",
     "batch": "python3 scripts/pipeline.py run --limit 10",
-    "deploy:check": "wrangler deploy --dry-run",
-    "deploy": "wrangler deploy"
+    "deploy:check": "python3 scripts/run_wrangler.py deploy --dry-run --config wrangler.jsonc",
+    "deploy": "python3 scripts/run_wrangler.py deploy --config wrangler.jsonc"
   },
   "devDependencies": {
     "qrcode": "1.5.4",
