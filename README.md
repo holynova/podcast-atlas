@@ -6,7 +6,7 @@ A Chinese visual reading library for Half Latte and Zhixing Tavern podcasts. Top
 
 ![真实网站预览 / Website screenshot](assets/screenshot.png)
 
-- [Cloudflare Demo（待完成登录与上线验证 / pending verification）](https://xiaosang.cc/podcast-atlas/)
+- [Cloudflare Demo](https://xiaosang.cc/podcast-atlas/)
 - [GitHub Repo](https://github.com/holynova/podcast-atlas)
 
 <img src="assets/qr.png" width="160" alt="扫码访问播客图解网站 / Scan to visit Podcast Atlas">
