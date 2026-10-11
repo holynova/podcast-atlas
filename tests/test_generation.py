@@ -15,6 +15,19 @@ class GenerationTests(unittest.TestCase):
         with self.assertRaises(p.GenerationDeferred):
             p.generation_gate({'episodes':{'other':{'slide_status':'queued'}}})
 
+    def test_new_deck_is_not_polled_or_failed_before_twenty_minutes(self):
+        r={'notebook_id':'nb','artifact_id':'early','slide_status':'queued','slide_submitted_at':p.now()}
+        state={'episodes':{'e':r}}
+        self.assertFalse(p.notebook_check_due(state,'nb'))
+        with patch.object(p,'get_artifacts') as query,patch.object(p,'pause_generation') as pause:
+            self.assertFalse(p.collect_slides(state,{'id':'e'},[{'id':'early','status':'failed','title':'e'}]))
+            query.assert_not_called();pause.assert_not_called()
+        self.assertEqual(r['slide_status'],'queued')
+
+    def test_deck_can_be_checked_after_twenty_minutes(self):
+        submitted=(dt.datetime.now(p.TZ)-dt.timedelta(minutes=21)).isoformat()
+        self.assertTrue(p.notebook_check_due({'episodes':{'e':{'notebook_id':'nb','slide_status':'queued','slide_submitted_at':submitted}}},'nb'))
+
     def test_interval_survives_runner_restart(self):
         with self.assertRaises(p.GenerationDeferred):
             p.generation_gate({'episodes':{},'last_slide_submission_at':p.now()})

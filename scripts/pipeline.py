@@ -90,6 +90,18 @@ def generation_gate(state):
     if last and (dt.datetime.now(TZ)-dt.datetime.fromisoformat(last)).total_seconds() < CONFIG.get('generation_interval_seconds',600):
         raise GenerationDeferred('Waiting for the 10-minute submission interval.')
 
+def generation_waiting(r):
+    """Allow a newly submitted deck its initial generation window before polling."""
+    submitted = r.get('slide_submitted_at')
+    return bool(submitted and r.get('slide_status') in ['queued','submitting'] and
+                (dt.datetime.now(TZ)-dt.datetime.fromisoformat(submitted)).total_seconds()
+                < CONFIG.get('generation_initial_wait_seconds',1200))
+
+def notebook_check_due(state, nb):
+    unfinished = [r for r in state['episodes'].values()
+                  if r.get('notebook_id') == nb and r.get('status') != 'complete']
+    return not any(generation_waiting(r) for r in unfinished)
+
 def cli(*args, timeout=300):
     global _LAST_REQUEST
     if _LAST_REQUEST is not None:
@@ -213,6 +225,7 @@ def start_slides(state, ep, artifacts=None):
     else:
         generation_gate(state)
         state['last_slide_submission_at'] = now()
+        r['slide_submitted_at'] = state['last_slide_submission_at']
         r['slide_status'] = 'submitting'; write_json(STATE_FILE, state)
         try:
             a = cli('slides', 'create', r['notebook_id'], '--source-ids', r['source_id'], '--format', 'detailed_deck', '--language', 'zh-CN', '--focus', f"{ep['title']}；标识 {ep['id']}。{SLIDE_FOCUS}", '--confirm', '--json')
@@ -238,6 +251,7 @@ def make_article(state, ep):
 
 def collect_slides(state, ep, artifacts=None):
     r = state['episodes'][ep['id']]
+    if generation_waiting(r): return False
     if artifacts is not None:
         matches = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False)]
         if matches:
@@ -330,6 +344,7 @@ def run(args):
             pending = 0
             artifact_cache = {}
             for nb in ({r.get('notebook_id') for r in state['episodes'].values() if r.get('slide_status') in ['queued','submitting']} | {state['episodes'][ep['id']].get('notebook_id') for ep in selected if state['episodes'][ep['id']].get('status') != 'complete'}) - {None}:
+                if not notebook_check_due(state, nb): continue
                 try: artifact_cache[nb] = get_artifacts(nb)
                 except Exception as error: print('STATUS ERROR', str(error)[:250], flush=True)
             collecting = [ep for ep in items if ep in selected or state['episodes'][ep['id']].get('slide_status') in ['queued','submitting']]

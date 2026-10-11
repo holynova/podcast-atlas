@@ -54,6 +54,7 @@ def run(profile,wait_minutes):
         while True:
             cache={}
             for nb in {r.get('notebook_id') for r in job['episodes'].values() if r.get('status')!='complete'}-{None}:
+                if not p.notebook_check_due(job,nb):continue
                 try:cache[nb]=p.get_artifacts(nb)
                 except Exception as e:print('STATUS ERROR',str(e)[:200],flush=True)
             for ep in selected:
@@ -85,4 +86,4 @@ def run(profile,wait_minutes):
             p.paced_sleep(min(p.CONFIG['poll_interval_seconds'],max(0,deadline-time.monotonic())))
 
 if __name__=='__main__':
-    ap=argparse.ArgumentParser();ap.add_argument('--profile',choices=['account-b'],default='account-b');ap.add_argument('--wait-minutes',type=float,default=30);args=ap.parse_args();run(args.profile,args.wait_minutes)
+    ap=argparse.ArgumentParser();ap.add_argument('--profile',choices=['account-b'],default='account-b');ap.add_argument('--wait-minutes',type=float,default=60);args=ap.parse_args();run(args.profile,args.wait_minutes)
