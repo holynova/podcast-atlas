@@ -9,7 +9,7 @@ sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True)
 branch = subprocess.check_output(['git', 'branch', '--show-current'], cwd=ROOT, text=True).strip()
 if branch != 'main': raise SystemExit('Publication must use main')
 env = network_env()
-remote_sha = subprocess.check_output(['git', 'ls-remote', 'origin', 'refs/heads/main'], cwd=ROOT, text=True,env=env).split()[0]
+remote_sha = subprocess.check_output(['git','-c','http.version=HTTP/1.1','-c','http.proxy='+env.get('HTTPS_PROXY',''), 'ls-remote', 'origin', 'refs/heads/main'], cwd=ROOT, text=True,env=env).split()[0]
 if sha != remote_sha: raise SystemExit('Local main is not the pushed source state')
 def get(path, expected=None):
     with tempfile.NamedTemporaryFile(dir=ROOT/'work') as file:
