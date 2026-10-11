@@ -1,0 +1,11 @@
+node_modules/
+dist/
+work/
+.wrangler/
+.env*
+.DS_Store
+state/runner.lock
+__pycache__/
+state/progress.json
+state/progress.json.tmp
+.impeccable/

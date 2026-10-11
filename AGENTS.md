@@ -1,0 +1,12 @@
+# 播客图解项目约定
+
+- 项目唯一源码分支为 `main`。原始数据在 `/Users/sym/code/my-data/xiaoyuzhou`，只读；禁止修改、复制进仓库或部署目录。
+- 产物、网页源码和计划保存在本项目。NotebookLM 使用 `nlm`，中文、详细、丁丁历险记漫画风格，一集一套。
+- 制作前读 `PLAN.md`、`state/progress.json` 和 `state/queue.json`。每天北京时间13:00最多选10集；同一天重跑复用原批次，不追加新集。
+- 进度文件是本地权威记录。`complete` 仅表示图文和PDF都已准备好；只有经HTTPS验证后才写 `publication_status=verified`。失败与提交不明的生成不能记为成功。
+- 只重试未完成步骤，结果不明的提交先查NotebookLM；不得删除已有笔记本或产物。失败最多3次，超过后报告并等待人工处理。
+- 文案用短句、常用词；核对同音人名、金额和数量。保留原节目、章节时间戳，避免绝对化和未经来源支持的人物指责。
+- 幻灯片选页作为网站插图；不要用装饰占位图冒充内容插图。公开站点只包含 `dist/`，不包含 `state/`、`work/` 和认证信息。
+- 使用 hn-project-publisher 发布到 Cloudflare Workers 自定义域名及 xiaosang.cc 作品集。用户已明确授权首次发布和每日内容更新；GitHub公开仓库只含本项目的源码与加工产物。
+- 不创建发布分支、GitHub Actions或Workers Git自动部署。每天内容通过本地锁定版Wrangler从已提交、已推送的main同一提交发布。
+- 作品集为 `/Users/sym/code/holynova.github.io` 的 master，保留其他工作区文件和条目。有效条目后续复用。

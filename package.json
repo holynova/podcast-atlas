@@ -1,0 +1,17 @@
+{
+  "name": "podcast-atlas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "python3 scripts/build.py",
+    "dev": "python3 -m http.server 4173 --directory dist",
+    "batch": "python3 scripts/pipeline.py run --limit 10",
+    "deploy:check": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "qrcode": "1.5.4",
+    "wrangler": "4.149.0"
+  }
+}

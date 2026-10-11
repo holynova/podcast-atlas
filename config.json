@@ -1,0 +1,8 @@
+{
+  "source_root": "/Users/sym/code/my-data/xiaoyuzhou",
+  "timezone": "Asia/Shanghai",
+  "daily_limit": 10,
+  "domain": "https://podcast-atlas.xiaosang.cc",
+  "repo": "https://github.com/holynova/podcast-atlas",
+  "max_attempts": 3
+}
