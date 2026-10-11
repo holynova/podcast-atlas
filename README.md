@@ -6,7 +6,7 @@ A Chinese visual reading library for Half Latte and Zhixing Tavern podcasts. Top
 
 ![真实网站预览 / Website screenshot](assets/screenshot.png)
 
-- [Cloudflare Demo（待完成登录与上线验证 / pending verification）](https://podcast-atlas.xiaosang.cc/)
+- [Cloudflare Demo（待完成登录与上线验证 / pending verification）](https://xiaosang.cc/podcast-atlas/)
 - [GitHub Repo](https://github.com/holynova/podcast-atlas)
 
 <img src="assets/qr.png" width="160" alt="扫码访问播客图解网站 / Scan to visit Podcast Atlas">
@@ -31,7 +31,7 @@ npm run deploy:check
 npm run deploy
 ```
 
-Cloudflare Workers · Custom Domain: `podcast-atlas.xiaosang.cc`.
+Cloudflare Workers · Domain: `xiaosang.cc` · Route: `/podcast-atlas/`.
 Use the sole `main` source branch and deploy locally from its committed, pushed state. No Cloudflare CI or Git integration. The daily Codex task invokes the same local workflow.
 
 网页讲解与漫画为AI辅助整理，可能存在识别或生成错误；每集保留原节目入口及回听时间。完整原始逐字稿不属于公开产物。

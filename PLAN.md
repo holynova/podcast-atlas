@@ -23,18 +23,18 @@ python3 scripts/pipeline.py status
 python3 scripts/pipeline.py collect --wait-minutes 10
 ```
 
-程序使用文件锁避免并发、原子写入进度；同日重复执行复用已选10集。先上传带时间戳逐字稿，再逐集指定source ID生成详细中文漫画幻灯片和结构化讲解。生成成功后下载并验证PDF，导出封面及内页WebP，构建静态网站。每集分别保存source、article、slides、download、publication状态。原始上传暂存文件在被忽略的work目录。
+程序使用文件锁避免并发、原子写入进度；同日重复执行复用已选10个新单集。历史未完成任务另记retry_ids，续收与重试不挤占当天的新单集队列。先上传带时间戳逐字稿，再逐集指定source ID生成详细中文漫画幻灯片和结构化讲解。生成成功后下载并验证PDF，导出封面及内页WebP，构建静态网站。每集分别保存source、article、slides、download、publication状态。原始上传暂存文件在被忽略的work目录。
 
 NotebookLM按专题共用笔记本；其余单集按节目每50集分组，避免为487集各建一个笔记本超出账户上限。所有查询和幻灯片都只选择对应单集来源。
 
-失败至多3次。连接错误可重跑同一批次；明确额度耗尽记录重置时间后续做。已确认生成失败可用以下命令启用重试；结果不明的提交必须先核实NotebookLM，不盲目再提交。
+同一步当天失败至多3次，历史错误永久保留，次日重置当天失败计数再续做。连接错误可重跑同一批次；明确额度耗尽记录重置时间后续做。已确认生成失败可用以下命令启用重试；结果不明的提交必须先核实NotebookLM，不盲目再提交。
 
 ```bash
 python3 scripts/pipeline.py retry --id EPISODE_ID --stage article
 python3 scripts/pipeline.py retry --id EPISODE_ID --stage slides
 ```
 
-每日目标10集；若平台额度或认证阻止达成，准确记录实际成功量，不虚报成功。次日优先续做未完成集，再按队列补满当天10集。图文成功而PDF未完成时允许网页先上线，页面明确显示幻灯片等待中。
+每日目标10集；若平台额度或认证阻止达成，准确记录实际成功量，不虚报成功。每天按队列选10个未安排过的新单集，同时续做旧任务。图文成功而PDF未完成时允许网页先上线，页面明确显示幻灯片等待中。
 
 ## 校对与发布
 
@@ -46,7 +46,7 @@ python3 scripts/check.py
 npm run deploy:check
 ```
 
-有应用变更时递增版本、更新截图、按本次明确路径提交到main并推送；从该提交重新构建，在本地`npm run deploy`。只上传dist目录。域名为 `https://podcast-atlas.xiaosang.cc/`，Worker为 `podcast-atlas`。Wrangler精确版本由package-lock.json固定。
+有应用变更时递增版本、更新截图、按本次明确路径提交到main并推送；从该提交重新构建，在本地`npm run deploy`。只上传dist目录。域名为 `https://xiaosang.cc/podcast-atlas/`，Worker为 `podcast-atlas`。Wrangler精确版本由package-lock.json固定。
 
 首次发布还需要真实截图、二维码、双语README、GitHub Homepage、Umami以及xiaosang.cc作品集独立部署与回读验证。每日新增内容已获发布授权，使用本地Wrangler，不添加Git或CI自动部署。
 
@@ -64,3 +64,7 @@ npm run deploy:check
 ## 外部状态
 
 每日自动化已创建（ID：automation），每天13:00触发当前聊天。Cloudflare认证已核实有效。如网络导致认证刷新失败，先使用 `NODE_OPTIONS=--dns-result-order=ipv4first npx wrangler whoami` 重试；仅在确认凭据无效时请用户完成登录。
+
+## 已核实的发布例外
+
+Cloudflare 返回 code 100122：xiaosang.cc 已达到100个 Workers Custom Domains 上限。因此本项目复用现有主域名，使用独立 podcast-atlas Worker 的路径路由 `xiaosang.cc/podcast-atlas` 与 `xiaosang.cc/podcast-atlas/*`。最终网站地址为 https://xiaosang.cc/podcast-atlas/。worker.js 去除请求前缀后读取 ASSETS，并保留资源重定向前缀。所有公开链接、二维码、README、GitHub Homepage和作品集都使用此地址。不更改其他项目域名、不新增Pages或CI部署。

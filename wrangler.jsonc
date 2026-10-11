@@ -5,13 +5,20 @@
   "workers_dev": false,
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    "binding": "ASSETS",
+    "run_worker_first": true
   },
   "routes": [
     {
-      "pattern": "podcast-atlas.xiaosang.cc",
-      "custom_domain": true
+      "pattern": "xiaosang.cc/podcast-atlas",
+      "zone_id": "a9ae8ed6c9a473e6c79daa58b29e8b12"
+    },
+    {
+      "pattern": "xiaosang.cc/podcast-atlas/*",
+      "zone_id": "a9ae8ed6c9a473e6c79daa58b29e8b12"
     }
   ],
-  "account_id": "ef7863c4de93e71c3496f940c8ab4865"
+  "account_id": "ef7863c4de93e71c3496f940c8ab4865",
+  "main": "worker.js"
 }

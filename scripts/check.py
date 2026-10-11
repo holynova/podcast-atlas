@@ -3,6 +3,7 @@ import json, pathlib, sys
 from html.parser import HTMLParser
 from urllib.parse import unquote, urlparse
 ROOT = pathlib.Path(__file__).resolve().parents[1]; DIST = ROOT / 'dist'
+BASE = json.loads((ROOT / 'config.json').read_text()).get('base_path', '')
 errors = []
 class Links(HTMLParser):
     def __init__(self, path): super().__init__(); self.path = path
@@ -12,6 +13,7 @@ class Links(HTMLParser):
             val = attrs.get(attr, '')
             if not val.startswith('/') or val.startswith('//'): continue
             val = unquote(urlparse(val).path)
+            if BASE and (val == BASE or val.startswith(BASE + '/')): val = val[len(BASE):] or '/'
             target = DIST / val.lstrip('/')
             if target.is_dir(): target = target / 'index.html'
             if not target.is_file(): errors.append(f'{self.path.relative_to(DIST)}: missing {val}')
@@ -20,6 +22,8 @@ for name in ['state', 'work', 'config.json', 'transcript.txt', 'transcript.json'
     if any(p.name == name for p in DIST.rglob('*')): errors.append('Private/source file in dist: ' + name)
 for pdf in (DIST / 'assets/slides').glob('*.pdf'):
     if pdf.read_bytes()[:5] != b'%PDF-': errors.append('Bad PDF: ' + str(pdf))
+for asset in DIST.rglob('*'):
+    if asset.is_file() and asset.stat().st_size > 25*1024*1024: errors.append('Static asset exceeds 25 MiB: ' + str(asset.relative_to(DIST)))
 sys.path.insert(0, str(ROOT / 'scripts'))
 from pipeline import validate_article
 for article in (ROOT / 'content').glob('*.json'):

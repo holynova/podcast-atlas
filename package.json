@@ -1,11 +1,11 @@
 {
   "name": "podcast-atlas",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "python3 scripts/build.py",
-    "dev": "python3 -m http.server 4173 --directory dist",
+    "dev": "wrangler dev --port 4173",
     "batch": "python3 scripts/pipeline.py run --limit 10",
     "deploy:check": "wrangler deploy --dry-run",
     "deploy": "wrangler deploy"

@@ -198,7 +198,9 @@ def collect_slides(state, ep, artifacts=None):
     target = ROOT / 'assets/slides' / (ep['id'] + '.pdf')
     if target.exists():
         if not (ROOT / 'assets/illustrations' / ep['id'] / '0.webp').exists():
-            subprocess.run(['/Users/sym/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3', str(ROOT / 'scripts/render_slides.py'), str(target)], check=True, timeout=180)
+            runtime = '/Users/sym/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3'
+            subprocess.run([runtime, str(ROOT / 'scripts/optimize_slides.py'), str(target)], check=True, timeout=180)
+            subprocess.run([runtime, str(ROOT / 'scripts/render_slides.py'), str(target)], check=True, timeout=180)
         r['slide_status'] = 'downloaded'; r['pdf'] = 'assets/slides/' + target.name; return True
     if artifacts is None: artifacts = get_artifacts(r['notebook_id'])
     a = next((a for a in artifacts if a.get('id', a.get('artifact_id')) == r['artifact_id']), None)
@@ -211,7 +213,6 @@ def collect_slides(state, ep, artifacts=None):
             r['artifact_id'] = best.get('artifact_id', best.get('id')); write_json(STATE_FILE, state); return False
         if r.get('slide_status') != 'failed':
             r.setdefault('attempts', {})['slides'] = r.get('attempts', {}).get('slides', 0) + 1
-        r.setdefault('attempts', {})['slides'] = max(r.get('attempts', {}).get('slides', 0), len(set(r.get('failed_artifact_ids', []))) + 1)
         r['slide_status'] = 'failed'; write_json(STATE_FILE, state)
         raise RuntimeError('NotebookLM slide generation failed; next batch resumes with a bounded retry')
     if status not in ['completed', 'complete', 'ready', '3']: write_json(STATE_FILE, state); return False
@@ -223,6 +224,7 @@ def collect_slides(state, ep, artifacts=None):
     os.replace(temp, target); r['slide_status'] = 'downloaded'; r['pdf'] = 'assets/slides/' + target.name
     # Native slide visuals become the illustrated web chapter assets.
     py = '/Users/sym/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3'
+    subprocess.run([py, str(ROOT / 'scripts/optimize_slides.py'), str(target)], check=True, timeout=180)
     subprocess.run([py, str(ROOT / 'scripts/render_slides.py'), str(target)], check=True, timeout=180)
     r['updated_at'] = now(); write_json(STATE_FILE, state); return True
 
@@ -233,6 +235,7 @@ def run(args):
         except BlockingIOError: raise SystemExit('Another batch is running; no duplicate run started.')
         state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {'schema_version': 1, 'notebooks': {}, 'episodes': {}, 'batches': {}, 'deployments': []}
         items = catalog()
+        date = dt.datetime.now(TZ).date().isoformat()
         group_count = {}
         for ep in items:
             if ep['rank'] == 100:
@@ -240,15 +243,22 @@ def run(args):
                 ep['standalone_group'] = (group_count[ep['show']] - 1) // 50 + 1
             state['episodes'].setdefault(ep['id'], {}).update({'title': ep['title'], 'show': ep['show'], 'topic': ep['topic'], 'source_available': ep['available']})
             record = state['episodes'][ep['id']]
+            if record.get('attempts_date', date) != date:
+                record.setdefault('attempt_history', {})[record['attempts_date']] = record.get('attempts', {})
+                record['attempts'] = {}
+                if record.get('status') == 'blocked': record['status'] = 'pending'
+            record['attempts_date'] = date
             if not ep['available']: record['status'] = 'missing_source'
             elif any(v >= CONFIG['max_attempts'] for k,v in record.get('attempts', {}).items() if (k == 'article' and record.get('article_status') != 'ready') or (k == 'source' and not record.get('source_id')) or (k in ['slides', 'download'] and record.get('slide_status') != 'downloaded')):
                 record['status'] = 'blocked'
         write_json(ROOT / 'state/queue.json', [{k: v for k, v in ep.items() if not k.endswith('_path')} for ep in items])
-        date = dt.datetime.now(TZ).date().isoformat()
         if date not in state['batches']:
-            eligible = [ep for ep in items if ep['available'] and state['episodes'][ep['id']].get('status') not in ['complete', 'blocked']]
-            state['batches'][date] = {'ids': [ep['id'] for ep in eligible[:args.limit]], 'started_at': now()}
-        selected = [ep for ep in items if ep['id'] in state['batches'][date]['ids']]
+            assigned = {eid for batch in state['batches'].values() for eid in batch['ids']}
+            eligible = [ep for ep in items if ep['available'] and ep['id'] not in assigned]
+            retries = [ep['id'] for ep in items if ep['id'] in assigned and ep['available'] and state['episodes'][ep['id']].get('status') != 'complete']
+            state['batches'][date] = {'ids': [ep['id'] for ep in eligible[:args.limit]], 'retry_ids': retries, 'started_at': now()}
+        selected_ids = set(state['batches'][date]['ids'] + state['batches'][date].get('retry_ids', []))
+        selected = [ep for ep in items if ep['id'] in selected_ids]
         write_json(STATE_FILE, state)
         print('BATCH', date, [ep['title'] for ep in selected], flush=True)
         for ep in selected if args.command == 'run' else []:
@@ -283,7 +293,7 @@ def run(args):
             if not pending or time.monotonic() >= deadline: break
             time.sleep(45)
         state['batches'][date]['finished_at'] = now()
-        state['batches'][date]['complete'] = sum(state['episodes'][ep['id']].get('status') == 'complete' for ep in selected)
+        state['batches'][date]['complete'] = sum(state['episodes'][eid].get('status') == 'complete' for eid in state['batches'][date]['ids'])
         write_json(STATE_FILE, state)
         subprocess.run([sys.executable, str(ROOT / 'scripts/build.py')], check=True)
 
