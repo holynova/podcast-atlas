@@ -164,7 +164,11 @@ def start_slides(state, ep):
     if r.get('artifact_id'): return
     # Recover an ambiguous create before any retry: each focus contains a unique episode marker.
     artifacts = get_artifacts(r['notebook_id'])
-    matches = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False) and a.get('id', a.get('artifact_id')) not in r.get('failed_artifact_ids', [])]
+    related = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False)]
+    failed_ids = set(r.get('failed_artifact_ids', []))
+    failed_ids.update(a.get('id', a.get('artifact_id')) for a in related if str(a.get('status', '')).lower() in ['failed', 'error', '4'])
+    r['failed_artifact_ids'] = sorted(failed_ids - {None})
+    matches = [a for a in related if a.get('id', a.get('artifact_id')) not in failed_ids]
     if matches:
         candidates = sorted(matches, key=lambda a: 0 if a.get('status') == 'completed' else 1 if a.get('status') != 'failed' else 2)
         a = candidates[0]; r['artifact_id'] = a.get('artifact_id', a.get('id'))
