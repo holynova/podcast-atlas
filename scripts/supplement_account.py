@@ -43,6 +43,7 @@ def run(profile,wait_minutes):
             r['attempts_date']=today
         p.write_json(p.STATE_FILE,job);sync_primary(job,profile)
         selected=[ep for ep in p.catalog() if ep['id'] in IDS]
+        selected.sort(key=lambda ep: sum(e.get('stage') == 'slides' for e in job['episodes'][ep['id']].get('errors',[])))
         for ep in selected:
             r=job['episodes'][ep['id']]
             if r.get('status')=='complete' or not p.remaining_attempts(r,'source'):continue
