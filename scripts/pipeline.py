@@ -11,6 +11,7 @@ TZ = ZoneInfo(CONFIG['timezone'])
 def now(): return dt.datetime.now(TZ).isoformat(timespec='seconds')
 def network_env():
     env = os.environ.copy()
+    env['NLM_PROFILE'] = CONFIG.get('notebooklm_profile','default')
     if not any(env.get(k) for k in ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy']):
         try:
             settings = subprocess.run(['scutil','--proxy'],capture_output=True,text=True,timeout=5).stdout
@@ -200,6 +201,7 @@ def start_slides(state, ep, artifacts=None):
     related = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False)]
     failed_ids = set(r.get('failed_artifact_ids', []))
     failed_ids.update(a.get('id', a.get('artifact_id')) for a in related if str(a.get('status', '')).lower() in ['failed', 'error', '4'])
+    failed_ids.difference_update(a.get('id',a.get('artifact_id')) for a in related if a.get('status') == 'completed')
     r['failed_artifact_ids'] = sorted(failed_ids - {None})
     matches = [a for a in related if a.get('id', a.get('artifact_id')) not in failed_ids]
     if matches:
@@ -333,7 +335,9 @@ def run(args):
             collecting = [ep for ep in items if ep in selected or state['episodes'][ep['id']].get('slide_status') in ['queued','submitting']]
             for ep in collecting:
                 r = state['episodes'][ep['id']]
-                if r.get('slide_status') == 'failed' or not remaining_attempts(r, 'download'):
+                remote = artifact_cache.get(r.get('notebook_id'), [])
+                recovered = any(a.get('status') == 'completed' and ep['id'] in json.dumps(a,ensure_ascii=False) for a in remote)
+                if not recovered and (r.get('slide_status') == 'failed' or not remaining_attempts(r, 'download')):
                     pending += 1; continue
                 if r.get('notebook_id') not in artifact_cache and not (ROOT/'assets/slides'/(ep['id']+'.pdf')).exists():
                     pending += 1; continue

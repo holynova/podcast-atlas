@@ -9,5 +9,6 @@
   "generation_interval_seconds": 600,
   "poll_interval_seconds": 300,
   "request_interval_seconds": 15,
-  "failure_cooldown_seconds": 18000
+  "failure_cooldown_seconds": 18000,
+  "notebooklm_profile": "default"
 }

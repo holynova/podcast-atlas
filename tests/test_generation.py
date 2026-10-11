@@ -7,6 +7,10 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import pipeline as p
 
 class GenerationTests(unittest.TestCase):
+    def test_account_is_pinned_without_switching_saved_default(self):
+        with patch.dict(p.os.environ,{'NLM_PROFILE':'account-b','HTTPS_PROXY':'http://localhost:7897'}):
+            self.assertEqual(p.network_env()['NLM_PROFILE'],p.CONFIG['notebooklm_profile'])
+
     def test_pending_job_prevents_new_generation(self):
         with self.assertRaises(p.GenerationDeferred):
             p.generation_gate({'episodes':{'other':{'slide_status':'queued'}}})
@@ -42,6 +46,14 @@ class GenerationTests(unittest.TestCase):
         with patch.object(p,'write_json'),patch.object(p,'cli',side_effect=RuntimeError('RESOURCE_EXHAUSTED')):
             with self.assertRaises(RuntimeError):p.start_slides(state,{'id':'e','title':'test'},[])
         self.assertGreater(dt.datetime.fromisoformat(state['generation_cooldown_until']),dt.datetime.now(p.TZ)+dt.timedelta(hours=4))
+
+    def test_manual_retry_can_recover_an_archived_failed_id(self):
+        state={'episodes':{'e':{'notebook_id':'nb','source_id':'src','slide_status':'retry_pending','failed_artifact_ids':['recovered'],'attempts':{'slides':3}}}}
+        with patch.object(p,'write_json'),patch.object(p,'cli') as cli:
+            p.start_slides(state,{'id':'e','title':'test'},[{'id':'recovered','status':'completed','title':'e'}])
+        self.assertEqual(state['episodes']['e']['artifact_id'],'recovered')
+        self.assertEqual(state['episodes']['e']['attempts']['slides'],3)
+        cli.assert_not_called()
 
     def test_remote_failure_uses_generation_stage_not_download(self):
         state={'episodes':{'quota-test':{'notebook_id':'nb','source_id':'src','artifact_id':'broken','slide_status':'queued'}}}

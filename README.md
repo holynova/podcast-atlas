@@ -19,7 +19,7 @@ npm run build
 npm run dev
 ```
 
-See `config.json` for the read-only source directory, `PLAN.md` for production order and `state/progress.json` for local progress. To produce another batch, run `python3 scripts/pipeline.py run --limit 10 --wait-minutes 25`. NotebookLM requires an authenticated `nlm` CLI. PDF previews use the bundled Python/Pillow/pypdf and Poppler runtime paths configured in `scripts/render_slides.py`.
+See `config.json` for the read-only source directory, `PLAN.md` for production order and `state/progress.json` for local progress. To produce another batch, run `python3 scripts/pipeline.py run --limit 10 --wait-minutes 150`. NotebookLM requires an authenticated `nlm` CLI. PDF previews use the bundled Python/Pillow/pypdf and Poppler runtime paths configured in `scripts/render_slides.py`.
 
 ## 发布 / Deploy
 
