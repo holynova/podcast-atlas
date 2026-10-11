@@ -70,3 +70,5 @@ npm run deploy:check
 Cloudflare 返回 code 100122：xiaosang.cc 已达到100个 Workers Custom Domains 上限。因此本项目复用现有主域名，使用独立 podcast-atlas Worker 的路径路由 `xiaosang.cc/podcast-atlas` 与 `xiaosang.cc/podcast-atlas/*`。最终网站地址为 https://xiaosang.cc/podcast-atlas/。worker.js 去除请求前缀后读取 ASSETS，并保留资源重定向前缀。所有公开链接、二维码、README、GitHub Homepage和作品集都使用此地址。不更改其他项目域名、不新增Pages或CI部署。
 
 网络：scripts/run_wrangler.py 和 NotebookLM runner 会继承已设置的HTTP_PROXY/HTTPS_PROXY；没有命令行代理变量时读取Mac已有的系统HTTPS代理，供当前命令使用。npm部署命令因此可以沿用本机Clash网络配置。
+
+生成节奏：新的幻灯片请求间隔至少90秒，避免连续批量创建触发平台的1—2分钟频率限制。已有结果的状态检查和下载不计入新生成，不重复提交。

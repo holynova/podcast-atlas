@@ -5,5 +5,6 @@
   "domain": "https://xiaosang.cc/podcast-atlas",
   "repo": "https://github.com/holynova/podcast-atlas",
   "max_attempts": 3,
-  "base_path": "/podcast-atlas"
+  "base_path": "/podcast-atlas",
+  "generation_interval_seconds": 90
 }

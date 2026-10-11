@@ -36,6 +36,8 @@ for i, page in enumerate(reader.pages):
         box(329, 413, 199, 32, ['2001：王志东离任'], 21)
         box(629, 443, 97, 74, ['后续：', '继续转型'], 23, '#d2d0bc')
         box(756, 598, 470, 72, ['四通曾是中关村的重要科技企业。', '21人是节目制作时查询的单一公司社保数据。'], 21, '#ffffff')
+    if i == 9:
+        box(552, 392, 192, 58, ['1993年香港上市', '1995年营收70亿'], 18, '#f3dfad')
     box(24, 698, 1220, 15, ['来源：《半拿铁》No.153。AI漫画演绎；姓名及数字校对说明见对应网页。'], 10, '#ffffff')
     c.save(); buffer.seek(0); page.merge_page(PdfReader(buffer).pages[0]); writer.add_page(page)
 with FILE.open('wb') as f: writer.write(f)

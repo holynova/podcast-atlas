@@ -174,6 +174,14 @@ def start_slides(state, ep):
     else:
         if r.get('next_slide_attempt_at') and dt.datetime.fromisoformat(r['next_slide_attempt_at']) > dt.datetime.now(TZ):
             raise RuntimeError('NotebookLM creation cooldown; resume after ' + r['next_slide_attempt_at'])
+        interval = CONFIG.get('generation_interval_seconds',90)
+        last = state.get('last_slide_submission_at')
+        if last:
+            delay = interval - (dt.datetime.now(TZ)-dt.datetime.fromisoformat(last)).total_seconds()
+            while delay > 0:
+                print('Waiting for NotebookLM request spacing:', round(delay), 'seconds', flush=True)
+                pause = min(delay,30); time.sleep(pause); delay -= pause
+        state['last_slide_submission_at'] = now()
         r['slide_status'] = 'submitting'; write_json(STATE_FILE, state)
         try:
             a = cli('slides', 'create', r['notebook_id'], '--source-ids', r['source_id'], '--format', 'detailed_deck', '--language', 'zh-CN', '--focus', f"{ep['title']}；标识 {ep['id']}。{SLIDE_FOCUS}", '--confirm', '--json')

@@ -1,5 +1,5 @@
 """Only mark publication verified after real HTTPS checks pass."""
-import argparse, fcntl, json, pathlib, subprocess, urllib.request
+import argparse, fcntl, hashlib, json, pathlib, subprocess, tempfile
 from pipeline import now, write_json, network_env
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(); p.add_argument('--deployment-id', required=True); args = p.parse_args()
@@ -11,11 +11,10 @@ if branch != 'main': raise SystemExit('Publication must use main')
 env = network_env()
 remote_sha = subprocess.check_output(['git', 'ls-remote', 'origin', 'refs/heads/main'], cwd=ROOT, text=True,env=env).split()[0]
 if sha != remote_sha: raise SystemExit('Local main is not the pushed source state')
-proxies = {kind: env.get(kind.upper()+'_PROXY') for kind in ['http','https'] if env.get(kind.upper()+'_PROXY')}
-opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
 def get(path, expected=None):
-    with opener.open(domain + path, timeout=30) as response:
-        data = response.read(); mime = response.headers.get_content_type()
+    with tempfile.NamedTemporaryFile(dir=ROOT/'work') as file:
+        result = subprocess.run(['curl','-fLsS','--http1.1','--retry','2','--retry-all-errors','--retry-delay','1','--max-time','30','--output',file.name,'--write-out','%{content_type}',domain+path],capture_output=True,text=True,env=env,check=True)
+        mime = result.stdout.split(';')[0].strip();data = pathlib.Path(file.name).read_bytes()
         if expected and mime != expected: raise RuntimeError(f'{path}: unexpected content type {mime}')
         return data
 if ('v'+version).encode() not in get('/', 'text/html'): raise SystemExit('Live version mismatch')
@@ -25,7 +24,9 @@ for file in (ROOT / 'content').glob('*.json'):
     article = json.loads(file.read_text()); eid = file.stem
     if article['headline'].encode() not in get('/episodes/'+eid+'/', 'text/html'): raise RuntimeError('Live article mismatch: '+eid)
     pdf = ROOT / 'assets/slides' / (eid + '.pdf')
-    if pdf.exists() and get('/assets/slides/'+eid+'.pdf', 'application/pdf')[:5] != b'%PDF-': raise RuntimeError('Bad live PDF')
+    if pdf.exists():
+        data = get('/assets/slides/'+eid+'.pdf', 'application/pdf')
+        if data[:5] != b'%PDF-' or hashlib.sha256(data).digest() != hashlib.sha256(pdf.read_bytes()).digest(): raise RuntimeError('Live PDF mismatch')
     cover = ROOT / 'assets/illustrations' / eid / '0.webp'
     if cover.exists(): get('/assets/illustrations/'+eid+'/0.webp', 'image/webp')
     verified.append(eid)

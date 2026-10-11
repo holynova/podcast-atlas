@@ -29,7 +29,10 @@ def card(ep):
     headline = a['headline'] if a else clean_title(ep['title'])
     dek = a['dek'] if a else '这一集正在制作队列中，完成后会在这里补上图文讲解与中文漫画幻灯片。'
     pdf = (ROOT / 'assets/slides' / (ep['id'] + '.pdf')).exists()
-    return f'''<article class="episode-card" data-search="{E(ep['title']+' '+ep['topic']+' '+ep['show'])}" data-show="{E(ep['show'])}"><a href="{link}" class="card-cover">{cover(ep)}</a><div class="card-copy"><div class="eyebrow">{E(ep['show'])} <span> / </span> {E(ep['topic'])}</div><h3><a href="{link}">{E(headline)}</a></h3><p>{E(dek)}</p><div class="card-bottom"><span>{ep['date']}</span><a href="{link}">{'阅读图解 ↗' if ready else '查看专题 →'}</a></div>{'<span class="pdf-badge">漫画幻灯片已就绪</span>' if pdf else ''}</div></article>'''
+    search_text = ep['title']+' '+ep['topic']+' '+ep['show']
+    if a:
+        search_text += ' '+a['headline']+' '+a['dek']+' '+' '.join(p['name']+' '+p['role'] for p in a['people'])+' '+' '.join(s['title'] for s in a['sections'])+' '+' '.join(g['term'] for g in a['glossary'])
+    return f'''<article class="episode-card" data-search="{E(search_text)}" data-show="{E(ep['show'])}"><a href="{link}" class="card-cover">{cover(ep)}</a><div class="card-copy"><div class="eyebrow">{E(ep['show'])} <span> / </span> {E(ep['topic'])}</div><h3><a href="{link}">{E(headline)}</a></h3><p>{E(dek)}</p><div class="card-bottom"><span>{ep['date']}</span><a href="{link}">{'阅读图解 ↗' if ready else '查看专题 →'}</a></div>{'<span class="pdf-badge">漫画幻灯片已就绪</span>' if pdf else ''}</div></article>'''
 
 def index():
     completed = len(ARTICLES); available = sum(ep['available'] for ep in QUEUE)
