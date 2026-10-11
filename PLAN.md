@@ -17,10 +17,10 @@
 
 ```bash
 cd /Users/sym/code/podcast-atlas
-python3 scripts/pipeline.py run --limit 10 --wait-minutes 25
+python3 scripts/pipeline.py run --limit 10 --wait-minutes 150
 python3 scripts/pipeline.py status
 # 只收取已提交的结果，不发起新生成：
-python3 scripts/pipeline.py collect --wait-minutes 10
+python3 scripts/pipeline.py collect --wait-minutes 0
 ```
 
 程序使用文件锁避免并发、原子写入进度；同日重复执行复用已选10个新单集。历史未完成任务另记retry_ids，续收与重试不挤占当天的新单集队列。先上传带时间戳逐字稿，再逐集指定source ID生成详细中文漫画幻灯片和结构化讲解。生成成功后下载并验证PDF，导出封面及内页WebP，构建静态网站。每集分别保存source、article、slides、download、publication状态。原始上传暂存文件在被忽略的work目录。
@@ -71,4 +71,6 @@ Cloudflare 返回 code 100122：xiaosang.cc 已达到100个 Workers Custom Domai
 
 网络：scripts/run_wrangler.py 和 NotebookLM runner 会继承已设置的HTTP_PROXY/HTTPS_PROXY；没有命令行代理变量时读取Mac已有的系统HTTPS代理，供当前命令使用。npm部署命令因此可以沿用本机Clash网络配置。
 
-生成节奏：新的幻灯片请求间隔至少90秒，避免连续批量创建触发平台的1—2分钟频率限制。已有结果的状态检查和下载不计入新生成，不重复提交。
+生成节奏：新幻灯片请求间隔至少10分钟，整个账户本项目同时最多一个在途任务。先收取和核实旧任务，再提交下一集；跨进程保留最后提交时间和冷却时间。每5分钟查询一次状态，每轮每个笔记本只查一次；普通CLI请求至少间隔15秒，不启用生成请求的隐式重试。
+
+明确限流或没有详细原因的生成失败后，暂停新幻灯片提交5小时，这是保守退避，不等同已确认账户重置时间；账户Usage提供恢复时间时应以实际时间调整。冷却期间仍可收取已成功产物。延期不记为失败，不重置已有失败次数。每日运行最多150分钟，只提交时间窗口内允许的任务，其余持久化留到下一次；每天10集是目标，不保证额度允许全部成功。先做旧任务，再安排当日新内容。

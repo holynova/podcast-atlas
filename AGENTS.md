@@ -10,3 +10,5 @@
 - 使用 hn-project-publisher 发布到 Cloudflare Workers 自定义域名及 xiaosang.cc 作品集。用户已明确授权首次发布和每日内容更新；GitHub公开仓库只含本项目的源码与加工产物。
 - 不创建发布分支、GitHub Actions或Workers Git自动部署。每天内容通过本地锁定版Wrangler从已提交、已推送的main同一提交发布。
 - 作品集为 `/Users/sym/code/holynova.github.io` 的 master，保留其他工作区文件和条目。有效条目后续复用。
+
+- 请求节奏：生成间隔至少10分钟、最多一个在途任务；状态每5分钟查一次、普通CLI请求至少间隔15秒。限流或生成失败后全局冷却5小时，冷却和排队不记作失败。禁止为凑每日目标绕过冷却或失败次数上限。

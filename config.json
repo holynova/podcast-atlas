@@ -6,5 +6,8 @@
   "repo": "https://github.com/holynova/podcast-atlas",
   "max_attempts": 3,
   "base_path": "/podcast-atlas",
-  "generation_interval_seconds": 90
+  "generation_interval_seconds": 600,
+  "poll_interval_seconds": 300,
+  "request_interval_seconds": 15,
+  "failure_cooldown_seconds": 18000
 }

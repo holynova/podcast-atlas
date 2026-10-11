@@ -60,7 +60,40 @@ def catalog():
     out.sort(key=lambda x: (x['rank'], 0 if x['rank'] == 2 and x['show'] == '半拿铁' else 1 if x['rank'] == 2 else 0, x['order'] if x['rank'] < 100 else -dt.date.fromisoformat(x['date']).toordinal(), x['id']))
     return out
 
+class GenerationFailed(RuntimeError):
+    pass
+
+class GenerationDeferred(RuntimeError):
+    pass
+
+_LAST_REQUEST = None
+
+def paced_sleep(seconds):
+    while seconds > 0:
+        pause = min(seconds, 30); time.sleep(pause); seconds -= pause
+
+def pause_generation(state, reason):
+    until = (dt.datetime.now(TZ) + dt.timedelta(seconds=CONFIG.get('failure_cooldown_seconds',18000))).isoformat(timespec='seconds')
+    previous = state.get('generation_cooldown_until')
+    state['generation_cooldown_until'] = max(previous or until, until)
+    state['generation_pause_reason'] = reason
+    write_json(STATE_FILE, state)
+
+def generation_gate(state):
+    until = state.get('generation_cooldown_until')
+    if until and dt.datetime.fromisoformat(until) > dt.datetime.now(TZ):
+        raise GenerationDeferred('Generation paused until ' + until)
+    if any(r.get('slide_status') in ['queued','submitting'] for r in state['episodes'].values()):
+        raise GenerationDeferred('An existing generation is still pending; collect it before submitting another.')
+    last = state.get('last_slide_submission_at')
+    if last and (dt.datetime.now(TZ)-dt.datetime.fromisoformat(last)).total_seconds() < CONFIG.get('generation_interval_seconds',600):
+        raise GenerationDeferred('Waiting for the 10-minute submission interval.')
+
 def cli(*args, timeout=300):
+    global _LAST_REQUEST
+    if _LAST_REQUEST is not None:
+        paced_sleep(max(0, CONFIG.get('request_interval_seconds',15) - (time.monotonic()-_LAST_REQUEST)))
+    _LAST_REQUEST = time.monotonic()
     env = network_env()
     env['NOTEBOOKLM_RATE_LIMIT_MAX_RETRIES'] = '0'
     binary = pathlib.Path(os.environ.get('NLM_BIN', '/Users/sym/.local/bin/nlm'))
@@ -155,7 +188,7 @@ def prepare_source(state, ep):
     if not r['source_id']: raise ValueError('Missing source ID')
     r['source_status'] = 'ready'; r['updated_at'] = now(); write_json(STATE_FILE, state)
 
-def start_slides(state, ep):
+def start_slides(state, ep, artifacts=None):
     r = state['episodes'][ep['id']]
     if r.get('slide_status') == 'failed':
         r.setdefault('failed_artifact_ids', []).append(r['artifact_id'])
@@ -163,7 +196,7 @@ def start_slides(state, ep):
         write_json(STATE_FILE, state)
     if r.get('artifact_id'): return
     # Recover an ambiguous create before any retry: each focus contains a unique episode marker.
-    artifacts = get_artifacts(r['notebook_id'])
+    if artifacts is None: artifacts = get_artifacts(r['notebook_id'])
     related = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False)]
     failed_ids = set(r.get('failed_artifact_ids', []))
     failed_ids.update(a.get('id', a.get('artifact_id')) for a in related if str(a.get('status', '')).lower() in ['failed', 'error', '4'])
@@ -176,15 +209,7 @@ def start_slides(state, ep):
     elif r.get('slide_status') == 'submitting':
         raise RuntimeError('Slide submission outcome uncertain. Inspect NotebookLM before re-submitting to avoid duplicates.')
     else:
-        if r.get('next_slide_attempt_at') and dt.datetime.fromisoformat(r['next_slide_attempt_at']) > dt.datetime.now(TZ):
-            raise RuntimeError('NotebookLM creation cooldown; resume after ' + r['next_slide_attempt_at'])
-        interval = CONFIG.get('generation_interval_seconds',90)
-        last = state.get('last_slide_submission_at')
-        if last:
-            delay = interval - (dt.datetime.now(TZ)-dt.datetime.fromisoformat(last)).total_seconds()
-            while delay > 0:
-                print('Waiting for NotebookLM request spacing:', round(delay), 'seconds', flush=True)
-                pause = min(delay,30); time.sleep(pause); delay -= pause
+        generation_gate(state)
         state['last_slide_submission_at'] = now()
         r['slide_status'] = 'submitting'; write_json(STATE_FILE, state)
         try:
@@ -192,7 +217,8 @@ def start_slides(state, ep):
         except RuntimeError as error:
             if 'Rate limited' in str(error) or 'RESOURCE_EXHAUSTED' in str(error):
                 r['slide_status'] = 'rate_limited'
-                r['next_slide_attempt_at'] = (dt.datetime.now(TZ) + dt.timedelta(minutes=2)).isoformat(timespec='seconds')
+                pause_generation(state, 'NotebookLM explicitly rate limited slide creation')
+                r['next_slide_attempt_at'] = state['generation_cooldown_until']
                 write_json(STATE_FILE, state)
             raise
         r['artifact_id'] = a['artifact_id']
@@ -235,10 +261,10 @@ def collect_slides(state, ep, artifacts=None):
         if alternatives:
             best = next((x for x in alternatives if x.get('status') == 'completed'), alternatives[0])
             r['artifact_id'] = best.get('artifact_id', best.get('id')); write_json(STATE_FILE, state); return False
-        if r.get('slide_status') != 'failed':
-            r.setdefault('attempts', {})['slides'] = r.get('attempts', {}).get('slides', 0) + 1
-        r['slide_status'] = 'failed'; write_json(STATE_FILE, state)
-        raise RuntimeError('NotebookLM slide generation failed; next batch resumes with a bounded retry')
+        r['slide_status'] = 'failed'
+        pause_generation(state, 'Remote slide generation failed; cause not provided, conservative cooldown')
+        write_json(STATE_FILE, state)
+        raise GenerationFailed('NotebookLM slide generation failed; cause not provided; generation paused')
     if status not in ['completed', 'complete', 'ready', '3']: write_json(STATE_FILE, state); return False
     target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix('.part.pdf')
@@ -283,13 +309,15 @@ def run(args):
             state['batches'][date] = {'ids': [ep['id'] for ep in eligible[:args.limit]], 'retry_ids': retries, 'started_at': now()}
         selected_ids = set(state['batches'][date]['ids'] + state['batches'][date].get('retry_ids', []))
         selected = [ep for ep in items if ep['id'] in selected_ids]
+        retry_ids = set(state['batches'][date].get('retry_ids', []))
+        selected.sort(key=lambda ep: ep['id'] not in retry_ids)
         write_json(STATE_FILE, state)
         print('BATCH', date, [ep['title'] for ep in selected], flush=True)
         for ep in selected if args.command == 'run' else []:
-            for stage, action in [('source', prepare_source), ('slides', start_slides)]:
-                if not remaining_attempts(state['episodes'][ep['id']], stage): continue
-                try: action(state, ep); print(stage.upper(), ep['title'], flush=True)
-                except Exception as error: mark_error(state, ep['id'], stage, error); break
+            if state['episodes'][ep['id']].get('status') == 'complete': continue
+            if not remaining_attempts(state['episodes'][ep['id']], 'source'): continue
+            try: prepare_source(state,ep)
+            except Exception as error: mark_error(state,ep['id'],'source',error)
         for ep in selected if args.command == 'run' else []:
             if not state['episodes'][ep['id']].get('source_id'): continue
             if not remaining_attempts(state['episodes'][ep['id']], 'article'): continue
@@ -299,23 +327,43 @@ def run(args):
         while True:
             pending = 0
             artifact_cache = {}
-            for nb in {state['episodes'][ep['id']].get('notebook_id') for ep in selected} - {None}:
+            for nb in ({r.get('notebook_id') for r in state['episodes'].values() if r.get('slide_status') in ['queued','submitting']} | {state['episodes'][ep['id']].get('notebook_id') for ep in selected if state['episodes'][ep['id']].get('status') != 'complete'}) - {None}:
                 try: artifact_cache[nb] = get_artifacts(nb)
                 except Exception as error: print('STATUS ERROR', str(error)[:250], flush=True)
-            for ep in selected:
+            collecting = [ep for ep in items if ep in selected or state['episodes'][ep['id']].get('slide_status') in ['queued','submitting']]
+            for ep in collecting:
                 r = state['episodes'][ep['id']]
                 if r.get('slide_status') == 'failed' or not remaining_attempts(r, 'download'):
+                    pending += 1; continue
+                if r.get('notebook_id') not in artifact_cache and not (ROOT/'assets/slides'/(ep['id']+'.pdf')).exists():
                     pending += 1; continue
                 try:
                     ready = collect_slides(state, ep, artifact_cache.get(r.get('notebook_id')))
                     if ready and r.get('article_status') == 'ready': r['status'] = 'complete'; r.pop('last_error', None)
                     else: pending += 1
                 except Exception as error:
-                    mark_error(state, ep['id'], 'download', error); pending += 1
+                    mark_error(state, ep['id'], 'slides' if isinstance(error,GenerationFailed) else 'download', error); pending += 1
+            if args.command == 'run':
+                for ep in selected:
+                    r = state['episodes'][ep['id']]
+                    if r.get('status') == 'complete' or not r.get('source_id') or r.get('artifact_id') and r.get('slide_status') != 'failed': continue
+                    if not remaining_attempts(r,'slides') or not remaining_attempts(r,'download'): continue
+                    artifacts = artifact_cache.get(r['notebook_id'])
+                    if artifacts is None: continue  # Never submit when reconciliation failed.
+                    try:
+                        start_slides(state,ep,artifacts)
+                        print('SLIDES',ep['title'],flush=True)
+                    except GenerationDeferred as error:
+                        print('DEFERRED',str(error),flush=True)
+                    except Exception as error: mark_error(state,ep['id'],'slides',error)
+                    break  # At most one new generation per polling cycle.
             write_json(STATE_FILE, state)
             print('COLLECT pending:', pending, flush=True)
             if not pending or time.monotonic() >= deadline: break
-            time.sleep(45)
+            until = state.get('generation_cooldown_until')
+            active = any(r.get('slide_status') in ['queued','submitting'] for r in state['episodes'].values())
+            if not active and until and dt.datetime.fromisoformat(until) > dt.datetime.now(TZ): break
+            paced_sleep(min(CONFIG.get('poll_interval_seconds',300),max(0,deadline-time.monotonic())))
         state['batches'][date]['finished_at'] = now()
         state['batches'][date]['complete'] = sum(state['episodes'][eid].get('status') == 'complete' for eid in state['batches'][date]['ids'])
         write_json(STATE_FILE, state)
@@ -335,10 +383,16 @@ if __name__ == '__main__':
         with (ROOT / 'state/runner.lock').open('w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             s = json.loads(STATE_FILE.read_text()); r = s['episodes'][args.id]
+            date = dt.datetime.now(TZ).date().isoformat()
+            if r.get('attempts_date',date) != date:
+                r.setdefault('attempt_history',{})[r['attempts_date']] = r.get('attempts',{})
+                r['attempts'] = {}; r['attempts_date'] = date
+            if not remaining_attempts(r,args.stage):
+                raise SystemExit('Daily failure limit reached; retry does not reset today’s failures.')
             if args.stage == 'slides':
                 if r.get('slide_status') != 'failed': raise SystemExit('Only confirmed failed artifacts may be retried; inspect ambiguous submission first.')
-                r.pop('artifact_id', None); r['slide_status'] = 'retry_pending'
-            r.setdefault('attempts', {})[args.stage] = 0; write_json(STATE_FILE, s)
+                # Keep the failed ID until start_slides archives it during reconciliation.
+            write_json(STATE_FILE, s)
             r['status'] = 'pending'; write_json(STATE_FILE, s)
         print('Retry enabled. Run the daily batch to resume.')
     else: run(args)
