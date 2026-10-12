@@ -78,6 +78,15 @@ class GenerationTests(unittest.TestCase):
         self.assertEqual(state['episodes']['quota-test']['attempts'],{'slides':1})
         self.assertIn('generation_cooldown_until',state)
 
+    def test_archived_failure_does_not_restart_cooldown(self):
+        r={'notebook_id':'nb','slide_status':'retry_pending','failed_artifact_ids':['old']}
+        state={'episodes':{'e':r},'generation_cooldown_until':'2026-10-12T01:18:58+08:00'}
+        with patch.object(p,'write_json'),patch.object(p,'pause_generation') as pause:
+            self.assertFalse(p.collect_slides(state,{'id':'e'},[{'id':'old','status':'failed','title':'e'}]))
+            pause.assert_not_called()
+        self.assertEqual(r['slide_status'],'retry_pending')
+        self.assertNotIn('artifact_id',r)
+
     def test_ambiguous_submission_not_repeated(self):
         state={'episodes':{'e':{'notebook_id':'nb','source_id':'src','slide_status':'submitting'}}}
         with patch.object(p,'cli') as cli:

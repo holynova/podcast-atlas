@@ -273,6 +273,11 @@ def collect_slides(state, ep, artifacts=None):
     if not a: raise ValueError('Tracked artifact missing')
     status = str(a.get('status', '')).lower(); r['slide_remote_status'] = status
     if status in ['failed', 'error', '4']:
+        if r['artifact_id'] in r.get('failed_artifact_ids', []):
+            # A historical failure is not a new attempt and must not restart cooldown.
+            r.pop('artifact_id', None); r['slide_status'] = 'retry_pending'
+            write_json(STATE_FILE, state)
+            return False
         alternatives = [x for x in artifacts if ep['id'] in json.dumps(x, ensure_ascii=False) and x.get('status') != 'failed']
         if alternatives:
             best = next((x for x in alternatives if x.get('status') == 'completed'), alternatives[0])
