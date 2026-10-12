@@ -78,7 +78,8 @@ class GenerationTests(unittest.TestCase):
             with self.assertRaises(p.GenerationFailed):
                 p.collect_slides(s,{'id':'e'},[{'id':'broken','status':'failed','title':'e'}])
         remaining=(dt.datetime.fromisoformat(s['generation_cooldown_until'])-dt.datetime.now(p.TZ)).total_seconds()
-        self.assertGreater(remaining,590);self.assertLess(remaining,610)
+        expected=p.CONFIG['unknown_failure_interval_seconds']-1200
+        self.assertGreater(remaining,expected-2);self.assertLess(remaining,expected+2)
 
     def test_new_deck_is_not_polled_or_failed_before_twenty_minutes(self):
         r={'notebook_id':'nb','artifact_id':'early','slide_status':'queued','slide_submitted_at':p.now()}

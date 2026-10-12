@@ -15,10 +15,20 @@ def get(path, expected=None):
     with tempfile.NamedTemporaryFile(dir=ROOT/'work') as file:
         result = subprocess.run(['curl','-fLsS','--http1.1','--retry','2','--retry-all-errors','--retry-delay','1','--max-time','30','--output',file.name,'--write-out','%{content_type}',domain+path],capture_output=True,text=True,env=env,check=True)
         mime = result.stdout.split(';')[0].strip();data = pathlib.Path(file.name).read_bytes()
-        if expected and mime != expected: raise RuntimeError(f'{path}: unexpected content type {mime}')
+        if expected and mime not in ([expected] if isinstance(expected,str) else expected): raise RuntimeError(f'{path}: unexpected content type {mime}')
         return data
 if ('v'+version).encode() not in get('/', 'text/html'): raise SystemExit('Live version mismatch')
-get('/style.css', 'text/css'); get('/app.js')
+if get('/style.css','text/css') != (ROOT/'style.css').read_bytes():raise RuntimeError('Live CSS mismatch')
+for module in ['app.js','search.js']:
+    if get('/'+module,['text/javascript','application/javascript']) != (ROOT/module).read_bytes():raise RuntimeError('Live script mismatch: '+module)
+index=json.loads(get('/search-index.json','application/json'))
+local_index=json.loads((ROOT/'dist/search-index.json').read_text())
+if index != local_index or index['version'] != version:raise RuntimeError('Live search index mismatch')
+if '半拿铁'.encode() not in get('/topics/','text/html') or '知行小酒馆'.encode() not in get('/topics/','text/html'):raise RuntimeError('Live topic groups missing')
+from build import TOPIC_GROUPS,topic_url
+for show,topic in TOPIC_GROUPS:
+    page=get(topic_url(topic,show),'text/html')
+    if (show+' / ').encode() not in page or topic.encode() not in page:raise RuntimeError('Live show topic mismatch')
 verified = []
 for file in (ROOT / 'content').glob('*.json'):
     article = json.loads(file.read_text()); eid = file.stem

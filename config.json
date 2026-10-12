@@ -1,7 +1,6 @@
 {
   "source_root": "/Users/sym/code/my-data/xiaoyuzhou",
   "timezone": "Asia/Shanghai",
-  "daily_limit": 10,
   "domain": "https://xiaosang.cc/podcast-atlas",
   "repo": "https://github.com/holynova/podcast-atlas",
   "max_attempts": 3,
@@ -11,7 +10,7 @@
   "generation_initial_wait_seconds": 1200,
   "request_interval_seconds": 15,
   "failure_cooldown_seconds": 18000,
-  "unknown_failure_interval_seconds": 1800,
+  "unknown_failure_interval_seconds": 18000,
   "notebooklm_profile": "default",
   "account_b_series_ids": [
     "64804a7d6752b5f9de296733",
@@ -26,5 +25,10 @@
     "66ea60b83a5ff0a0ca269e33",
     "670412dd6c7f8177865af177",
     "6718a4cbdb2cf82757560ba0"
-  ]
+  ],
+  "cycle_interval_hours": 5,
+  "cycle_slide_limit": 5,
+  "cycle_article_limit": 5,
+  "text_first": true,
+  "cycle_anchor_at": "2026-10-12T15:55:23+00:00"
 }

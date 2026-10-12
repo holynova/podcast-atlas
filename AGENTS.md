@@ -1,18 +1,16 @@
 # 播客图解项目约定
 
-- 项目唯一源码分支为 `main`。原始数据在 `/Users/sym/code/my-data/xiaoyuzhou`，只读；禁止修改、复制进仓库或部署目录。
-- 产物、网页源码和计划保存在本项目。NotebookLM 使用 `nlm`，中文、详细、丁丁历险记漫画风格，一集一套。
-- 制作前读 `PLAN.md`、`state/progress.json` 和 `state/queue.json`。每天北京时间13:00选择10个新单集，历史未完成任务另行续做；同一天重跑复用原批次，不追加新集。
-- 进度文件是本地权威记录。`complete` 仅表示图文和PDF都已准备好；只有经HTTPS验证后才写 `publication_status=verified`。失败与提交不明的生成不能记为成功。
-- 只重试未完成步骤，结果不明的提交先查NotebookLM；不得删除已有笔记本或产物。同一步当天最多重试3次，超过后记录并报告，次日继续；不盲目重复提交结果不明的任务。
-- 文案用短句、常用词；核对同音人名、金额和数量。保留原节目、章节时间戳，避免绝对化和未经来源支持的人物指责。
-- 幻灯片选页作为网站插图；不要用装饰占位图冒充内容插图。公开站点只包含 `dist/`，不包含 `state/`、`work/` 和认证信息。
-- 使用 hn-project-publisher 发布到 Cloudflare Workers 自定义域名及 xiaosang.cc 作品集。用户已明确授权首次发布和每日内容更新；GitHub公开仓库只含本项目的源码与加工产物。
-- 不创建发布分支、GitHub Actions或Workers Git自动部署。每天内容通过本地锁定版Wrangler从已提交、已推送的main同一提交发布。
-- 作品集为 `/Users/sym/code/holynova.github.io` 的 master，保留其他工作区文件和条目。有效条目后续复用。
-
-- 请求节奏：生成间隔至少10分钟、最多一个在途任务；提交后先等待20分钟，再每5分钟查状态一次、普通CLI请求至少间隔15秒。明确限流后同一账号冷却5小时（有实际Usage恢复时间时优先）；无详情的远端生成失败不认定为额度耗尽，从上次提交起间隔至少30分钟再尝试，冷却和排队不记作失败。禁止为凑每日目标绕过冷却或失败次数上限。
-
-- 第二账号account-b已授权补做首批百度上半场、腾讯QQ。各账号独立计算请求间隔、冷却和失败次数，保留原账号历史；由supplement_account.py管理这两集，默认runner跳过delegated_profile集，避免重复提交。
-
-- 2026-10-12用户扩展account-b授权：苹果公司简史5集，然后日本漫画史7集，系列内顺序。config.json.account_b_series_ids保存明确单集队列；原百度补齐及QQ历史保留，QQ已由default完成时不重复制作。
+- 唯一源码分支main。/Users/sym/code/my-data/xiaoyuzhou仅只读；不修改私有项目，不抓新节目，不将原文、认证或内部错误日志放入仓库或dist。
+- 先读PLAN.md、config.json、state/progress.json与state/queue.json。当前调度每5小时一次，两账号合计目标5套幻灯片；旧“每天13:00、10集”已被替代。
+- 统一用 `python3 scripts/cycle.py --slide-limit 5 --article-limit 5 --wait-minutes 150` 续做。先收旧结果，文字优先整理、独立发布，再补PDF。state/progress.json.cycles保存周期目标，同周期重跑不追加、不重复提交。
+- 各步骤分别记录；complete要求文字及PDF齐备，publication_status=verified要求HTTPS验证通过。排队、提交和下载都不能冒充已上线。失败与历史不能删除；同集同步骤当天最多3次失败，次日保留历史后重置日计数。
+- NotebookLM制作和排查只用nlm CLI。详细中文、丁丁历险记漫画风格，一集一套、指定单集source ID。两账号独立保存认证上下文、来源、笔记本、产物ID和冷却，不切换CLI保存的全局默认账号。
+- default优先中国互联网故事；account-b优先苹果公司简史5集、再日本漫画史7集，并保留百度上半场补齐。config.json.account_b_series_ids是明确队列；QQ已由default完成时记superseded，禁止重复制作。
+- 每个账号最多一个在途生成，提交间隔至少10分钟；首20分钟不查状态，此后每5分钟查一次，每轮每笔记本只查一次。普通CLI请求至少间隔15秒。失败后5小时退避，不将无详情失败认定为额度耗尽；更晚的实际Usage恢复时间优先。禁止为了凑目标绕过冷却或失败上限。
+- 每周期每集最多一次提交机会，提交前持久化记录；结果不明先查远端。手动重试遵守manual_retry_watch，check_not_before前不查询，核实结果前不重复提交。diagnostic_artifact_ids禁止当正式成品使用。
+- 协调器同时管理两账号的远端任务，本地写进度共用runner.lock；等待时释放锁，不绕过锁并发覆盖主进度。生成与部署不得同时进行。
+- 文字用短句和常用词；校对同音人名、日期、金额、引用及PDF选图。文字已整理但幻灯片未齐时明确显示等待状态，不用装饰占位图冒充插图。
+- 网站专题按“播客 + 专题”隔离，统计与下一集导航不得串播客。搜索只索引公开目录与加工后的讲解。
+- 使用hn-project-publisher发布，用户已授权更新。仅暂存明确文件、提交推送main成功，再从同一提交用锁定Wrangler手动部署；不创建发布分支、GitHub Actions或Workers Git自动部署。
+- 网站为https://xiaosang.cc/podcast-atlas/，保留podcast-atlas Worker、主域名路径路由、base_path、worker.js与wrangler.jsonc；不改其他项目路由。作品集master的有效条目与GitHub Profile复用。
+- 部署后运行record_deployment.py，通过专题、搜索、单集、PDF和图片HTTPS检查才记verified。全部现有文稿及产物完成后关闭自动化。

@@ -10,3 +10,4 @@ state/progress.json
 state/progress.json.tmp
 .impeccable/
 state/accounts/
+state/cycle.lock
