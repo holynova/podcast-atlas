@@ -319,6 +319,10 @@ def collect_slides(state, ep, artifacts=None):
     subprocess.run([py, str(ROOT / 'scripts/render_slides.py'), str(target)], check=True, timeout=180)
     r['updated_at'] = now(); write_json(STATE_FILE, state); return True
 
+def assigned_episode_ids(state):
+    assigned = {eid for batch in state['batches'].values() for eid in batch['ids']}
+    return assigned | set(CONFIG.get('account_b_series_ids', []))
+
 def run(args):
     (ROOT / 'work').mkdir(exist_ok=True); (ROOT / 'state').mkdir(exist_ok=True)
     with (ROOT / 'state/runner.lock').open('w') as lock:
@@ -344,7 +348,7 @@ def run(args):
                 record['status'] = 'blocked'
         write_json(ROOT / 'state/queue.json', [{k: v for k, v in ep.items() if not k.endswith('_path')} for ep in items])
         if date not in state['batches']:
-            assigned = {eid for batch in state['batches'].values() for eid in batch['ids']}
+            assigned = assigned_episode_ids(state)
             eligible = [ep for ep in items if ep['available'] and ep['id'] not in assigned]
             retries = [ep['id'] for ep in items if ep['id'] in assigned and ep['available'] and state['episodes'][ep['id']].get('status') != 'complete']
             state['batches'][date] = {'ids': [ep['id'] for ep in eligible[:args.limit]], 'retry_ids': retries, 'started_at': now()}

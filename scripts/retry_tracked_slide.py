@@ -7,7 +7,7 @@ ap=argparse.ArgumentParser();ap.add_argument('--profile',choices=['default','acc
 ap.add_argument('--episode',required=True);ap.add_argument('--artifact',required=True)
 args=ap.parse_args()
 if args.profile=='account-b' and args.episode not in supplement.IDS:
-    raise SystemExit('This account is only assigned the two authorized supplement episodes')
+    raise SystemExit('Episode is outside this account’s explicitly assigned scope')
 p.CONFIG['notebooklm_profile']=args.profile
 if args.profile=='account-b':p.STATE_FILE=p.ROOT/'state/accounts/account-b.json'
 with (p.ROOT/'state/runner.lock').open('w') as lock:

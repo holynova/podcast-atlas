@@ -6,7 +6,9 @@ One shared runner lock protects files; no saved default profile is switched.
 import argparse,copy,datetime as dt,fcntl,json,time
 import pipeline as p
 
-IDS=['6892d5fb638b0158792f7031','68d3600a522b40626cffca20']
+SUPPLEMENT_IDS=['6892d5fb638b0158792f7031','68d3600a522b40626cffca20']
+SERIES_IDS=p.CONFIG.get('account_b_series_ids',[])
+IDS=SUPPLEMENT_IDS+SERIES_IDS
 PRIMARY=p.STATE_FILE
 
 def sync_primary(job,profile):
@@ -14,6 +16,10 @@ def sync_primary(job,profile):
     for eid,r in job['episodes'].items():
         primary=main['episodes'][eid]
         primary.setdefault('alternate_runs',{})[profile]=copy.deepcopy(r)
+        article=p.ROOT/'content'/(eid+'.json')
+        if article.exists():
+            p.validate_article(json.loads(article.read_text()))
+            primary['article_status']='ready'
         if r.get('status')=='complete':
             changed = primary.get('artifact_id') != r.get('artifact_id') or primary.get('status') != 'complete'
             if primary.get('profile')!=profile:
@@ -37,19 +43,14 @@ def run(profile,wait_minutes):
         job=json.loads(p.STATE_FILE.read_text()) if p.STATE_FILE.exists() else {'schema_version':1,'profile':profile,'notebooks':{},'episodes':{}}
         today=dt.datetime.now(p.TZ).date().isoformat()
         for eid in IDS:
-            r=job['episodes'].setdefault(eid,{'article_status':'ready','title':main['episodes'][eid]['title'],'status':'pending'})
+            r=job['episodes'].setdefault(eid,{'article_status':'ready' if (p.ROOT/'content'/(eid+'.json')).exists() else 'pending','title':main['episodes'][eid]['title'],'status':'pending'})
             if r.get('attempts_date',today)!=today:
                 r.setdefault('attempt_history',{})[r['attempts_date']]=r.get('attempts',{});r['attempts']={}
             r['attempts_date']=today
         p.write_json(p.STATE_FILE,job);sync_primary(job,profile)
         selected=[ep for ep in p.catalog() if ep['id'] in IDS and job['episodes'][ep['id']].get('status') != 'superseded']
-        selected.sort(key=lambda ep: sum(e.get('stage') == 'slides' for e in job['episodes'][ep['id']].get('errors',[])))
-        for ep in selected:
-            r=job['episodes'][ep['id']]
-            if r.get('status')=='complete' or not p.remaining_attempts(r,'source'):continue
-            try:p.prepare_source(job,ep)
-            except Exception as e:
-                p.mark_error(job,ep['id'],'source',e);break
+        order=SERIES_IDS+SUPPLEMENT_IDS
+        selected.sort(key=lambda ep:order.index(ep['id']))
         deadline=time.monotonic()+wait_minutes*60
         while True:
             cache={}
@@ -68,13 +69,20 @@ def run(profile,wait_minutes):
                 except Exception as e:p.mark_error(job,ep['id'],'slides' if isinstance(e,p.GenerationFailed) else 'download',e)
             for ep in selected:
                 r=job['episodes'][ep['id']]
-                if r.get('status')=='complete' or not r.get('source_id') or r.get('artifact_id') and r.get('slide_status')!='failed':continue
-                if not p.remaining_attempts(r,'slides') or not p.remaining_attempts(r,'download'):continue
-                artifacts=cache.get(r['notebook_id'])
-                if artifacts is None:continue
-                try:p.start_slides(job,ep,artifacts);print('SUBMITTED',ep['title'],flush=True)
+                if r.get('status')=='complete' or r.get('artifact_id') and r.get('slide_status')!='failed':continue
+                if not all(p.remaining_attempts(r,k) for k in ['source','article','slides','download']):continue
+                stage='source'
+                try:
+                    p.generation_gate(job)
+                    p.prepare_source(job,ep)
+                    stage='article';p.make_article(job,ep)
+                    stage='slides'
+                    artifacts=cache.get(r['notebook_id'])
+                    if artifacts is None:artifacts=p.get_artifacts(r['notebook_id'])
+                    stage='slides';p.start_slides(job,ep,artifacts)
+                    print('SUBMITTED',ep['title'],flush=True)
                 except p.GenerationDeferred as e:print('DEFERRED',str(e),flush=True)
-                except Exception as e:p.mark_error(job,ep['id'],'slides',e)
+                except Exception as e:p.mark_error(job,ep['id'],stage,e)
                 break
             p.write_json(p.STATE_FILE,job);sync_primary(job,profile)
             print('ACCOUNT',profile,[(r['title'],r.get('slide_status')) for r in job['episodes'].values()],flush=True)

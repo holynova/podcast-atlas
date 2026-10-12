@@ -41,6 +41,11 @@ class GenerationTests(unittest.TestCase):
         self.assertNotIn('delegated_profile',merged)
         self.assertEqual(merged['alternate_runs']['account-b']['artifact_id'],'old-failure')
 
+    def test_second_account_queue_is_already_assigned_for_daily_selection(self):
+        with patch.dict(p.CONFIG,{'account_b_series_ids':['apple','manga']}):
+            assigned=p.assigned_episode_ids({'batches':{'day':{'ids':['internet']}}})
+        self.assertEqual(assigned,{'internet','apple','manga'})
+
     def test_short_cooldown_does_not_end_a_run_with_enough_time(self):
         until=(dt.datetime.now(p.TZ)+dt.timedelta(minutes=10)).isoformat()
         self.assertFalse(p.cooldown_outlasts_budget({'generation_cooldown_until':until},p.time.monotonic()+900))

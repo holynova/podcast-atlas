@@ -12,5 +12,19 @@
   "request_interval_seconds": 15,
   "failure_cooldown_seconds": 18000,
   "unknown_failure_interval_seconds": 1800,
-  "notebooklm_profile": "default"
+  "notebooklm_profile": "default",
+  "account_b_series_ids": [
+    "64804a7d6752b5f9de296733",
+    "648d75f3830480fdfa1e6a1d",
+    "64a531b1b21ecc647d69bcd7",
+    "64afdad9585daadfc8223a62",
+    "64c9f16299e1e7669ea5d09a",
+    "667bf851c13b46d76c0b7ac0",
+    "669f2c2c8fcadceb90423de6",
+    "66b3036ee0957daebd7b4365",
+    "66d7f1c9d3fe96bde0b175e4",
+    "66ea60b83a5ff0a0ca269e33",
+    "670412dd6c7f8177865af177",
+    "6718a4cbdb2cf82757560ba0"
+  ]
 }
