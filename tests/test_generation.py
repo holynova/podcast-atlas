@@ -15,6 +15,66 @@ class GenerationTests(unittest.TestCase):
         with self.assertRaises(p.GenerationDeferred):
             p.generation_gate({'episodes':{'other':{'slide_status':'queued'}}})
 
+    def test_diagnostic_task_blocks_other_submission(self):
+        with self.assertRaises(p.GenerationDeferred):
+            p.generation_gate({'episodes':{},'diagnostic_inflight':{'status':'queued'}})
+
+    def test_manual_retry_is_not_duplicated_before_reconciliation(self):
+        past=(dt.datetime.now(p.TZ)-dt.timedelta(minutes=1)).isoformat()
+        with self.assertRaises(p.GenerationDeferred):
+            p.generation_gate({'episodes':{},'manual_retry_watch':{'check_not_before':past}})
+
+    def test_manual_retry_notebook_wait_is_honored(self):
+        future=(dt.datetime.now(p.TZ)+dt.timedelta(minutes=20)).isoformat()
+        s={'episodes':{},'manual_retry_watch':{'notebook_id':'nb','check_not_before':future}}
+        self.assertFalse(p.notebook_check_due(s,'nb'))
+        self.assertTrue(p.notebook_check_due(s,'other'))
+
+    def test_other_account_does_not_redelegate_an_episode_completed_manually(self):
+        import json
+        import supplement_account as b
+        main={'episodes':{'e':{'status':'complete','profile':'default','artifact_id':'manual-success'}},'batches':{}}
+        with patch.object(b.PRIMARY.__class__,'read_text',return_value=json.dumps(main)),patch.object(p,'write_json') as write:
+            b.sync_primary({'episodes':{'e':{'status':'superseded','artifact_id':'old-failure'}}},'account-b')
+        merged=write.call_args.args[1]['episodes']['e']
+        self.assertEqual(merged['artifact_id'],'manual-success')
+        self.assertNotIn('delegated_profile',merged)
+        self.assertEqual(merged['alternate_runs']['account-b']['artifact_id'],'old-failure')
+
+    def test_short_cooldown_does_not_end_a_run_with_enough_time(self):
+        until=(dt.datetime.now(p.TZ)+dt.timedelta(minutes=10)).isoformat()
+        self.assertFalse(p.cooldown_outlasts_budget({'generation_cooldown_until':until},p.time.monotonic()+900))
+
+    def test_long_cooldown_stops_without_waiting_outside_run_budget(self):
+        until=(dt.datetime.now(p.TZ)+dt.timedelta(hours=5)).isoformat()
+        self.assertTrue(p.cooldown_outlasts_budget({'generation_cooldown_until':until},p.time.monotonic()+900))
+
+    def test_diagnostic_deck_is_not_reused_as_a_production_result(self):
+        s={'episodes':{'e':{'notebook_id':'nb','source_id':'src','slide_status':'retry_pending'}},'diagnostic_artifact_ids':['diag']}
+        with patch.object(p,'write_json'),patch.object(p,'cli',return_value={'artifact_id':'production'}) as cli:
+            p.start_slides(s,{'id':'e','title':'test'},[{'id':'diag','status':'completed','title':'e'}])
+        self.assertEqual(s['episodes']['e']['artifact_id'],'production')
+        cli.assert_called_once()
+
+    def test_diagnostic_deck_is_not_downloaded_as_a_production_result(self):
+        s={'episodes':{'e':{'notebook_id':'nb','source_id':'src'}},'diagnostic_artifact_ids':['diag']}
+        with patch.object(p,'cli') as cli:
+            self.assertFalse(p.collect_slides(s,{'id':'e'},[{'id':'diag','status':'completed','title':'e'}]))
+        cli.assert_not_called()
+
+    def test_diagnostic_generation_wait_prevents_early_notebook_poll(self):
+        s={'episodes':{},'diagnostic_inflight':{'notebook_id':'nb','submitted_at':p.now()}}
+        self.assertFalse(p.notebook_check_due(s,'nb'))
+
+    def test_unknown_failure_backoff_counts_time_already_waited(self):
+        submitted=(dt.datetime.now(p.TZ)-dt.timedelta(minutes=20)).isoformat()
+        s={'episodes':{'e':{'notebook_id':'nb','artifact_id':'broken','slide_status':'queued','slide_submitted_at':submitted}}}
+        with patch.object(p,'write_json'):
+            with self.assertRaises(p.GenerationFailed):
+                p.collect_slides(s,{'id':'e'},[{'id':'broken','status':'failed','title':'e'}])
+        remaining=(dt.datetime.fromisoformat(s['generation_cooldown_until'])-dt.datetime.now(p.TZ)).total_seconds()
+        self.assertGreater(remaining,590);self.assertLess(remaining,610)
+
     def test_new_deck_is_not_polled_or_failed_before_twenty_minutes(self):
         r={'notebook_id':'nb','artifact_id':'early','slide_status':'queued','slide_submitted_at':p.now()}
         state={'episodes':{'e':r}}

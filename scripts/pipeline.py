@@ -73,14 +73,19 @@ def paced_sleep(seconds):
     while seconds > 0:
         pause = min(seconds, 30); time.sleep(pause); seconds -= pause
 
-def pause_generation(state, reason):
-    until = (dt.datetime.now(TZ) + dt.timedelta(seconds=CONFIG.get('failure_cooldown_seconds',18000))).isoformat(timespec='seconds')
+def pause_generation(state, reason, until=None):
+    until = until or (dt.datetime.now(TZ) + dt.timedelta(seconds=CONFIG.get('failure_cooldown_seconds',18000))).isoformat(timespec='seconds')
     previous = state.get('generation_cooldown_until')
     state['generation_cooldown_until'] = max(previous or until, until)
     state['generation_pause_reason'] = reason
     write_json(STATE_FILE, state)
 
 def generation_gate(state):
+    watch = state.get('manual_retry_watch', {})
+    if watch.get('check_not_before') and not watch.get('checked_at'):
+        raise GenerationDeferred('User manually retried this notebook; reconcile its results before submitting another.')
+    if state.get('diagnostic_inflight'):
+        raise GenerationDeferred('A bounded diagnostic generation is pending; reconcile it first.')
     until = state.get('generation_cooldown_until')
     if until and dt.datetime.fromisoformat(until) > dt.datetime.now(TZ):
         raise GenerationDeferred('Generation paused until ' + until)
@@ -98,9 +103,22 @@ def generation_waiting(r):
                 < CONFIG.get('generation_initial_wait_seconds',1200))
 
 def notebook_check_due(state, nb):
+    watch = state.get('manual_retry_watch', {})
+    if watch.get('notebook_id') == nb and watch.get('check_not_before') and not watch.get('checked_at'):
+        if dt.datetime.fromisoformat(watch['check_not_before']) > dt.datetime.now(TZ): return False
+    diagnostic = state.get('diagnostic_inflight')
+    if diagnostic and diagnostic.get('notebook_id') == nb:
+        elapsed = (dt.datetime.now(TZ)-dt.datetime.fromisoformat(diagnostic['submitted_at'])).total_seconds()
+        if elapsed < CONFIG.get('generation_initial_wait_seconds',1200): return False
     unfinished = [r for r in state['episodes'].values()
                   if r.get('notebook_id') == nb and r.get('status') != 'complete']
     return not any(generation_waiting(r) for r in unfinished)
+
+def cooldown_outlasts_budget(state, deadline):
+    until = state.get('generation_cooldown_until')
+    if not until: return False
+    remaining = (dt.datetime.fromisoformat(until)-dt.datetime.now(TZ)).total_seconds()
+    return remaining > 0 and remaining >= max(0,deadline-time.monotonic())
 
 def cli(*args, timeout=300):
     global _LAST_REQUEST
@@ -111,7 +129,7 @@ def cli(*args, timeout=300):
     env['NOTEBOOKLM_RATE_LIMIT_MAX_RETRIES'] = '0'
     binary = pathlib.Path(os.environ.get('NLM_BIN', '/Users/sym/.local/bin/nlm'))
     command = [str(binary)]
-    if len(args) > 1 and (args[0], args[1]) in [('slides', 'create'), ('notebook', 'create'), ('source', 'add')]:
+    if len(args) > 1 and (args[0], args[1]) in [('slides', 'create'), ('studio', 'retry'), ('studio','failure-info'), ('notebook', 'create'), ('source', 'add')]:
         interpreter = binary.read_text().splitlines()[0].removeprefix('#!')
         command = [interpreter, str(ROOT / 'scripts/nlm_once.py')]
     p = subprocess.run([*command, *args], capture_output=True, text=True, timeout=timeout, env=env)
@@ -125,7 +143,7 @@ def cli(*args, timeout=300):
             except json.JSONDecodeError: pass
         raise RuntimeError('CLI did not return JSON: ' + s[:700])
 
-SLIDE_FOCUS = '仅讲选中的这一集。制作详细完整的中文学习幻灯片，建议20—30页，篇幅服从信息量。采用《丁丁历险记》漫画风格：清晰黑色轮廓、平涂鲜明配色、欧洲冒险漫画分镜、精细时代场景、中文旁白与气泡，人物形象前后一致。解释背景、人物关系、关键事件、商业或社会机制、转折与因果、经验与局限，用时间线与关系图总结。每页图文并茂、字号清晰，不堆满文字。排除片头混剪、广告和无关闲聊；仅依据选中逐字稿，不虚构日期、数字和引语，不确定处标注。标明原播客与精确单集号，不把多集拼成来源。标题只写故事主题，不把风格巨献、提示词或制作要求印进幻灯片。'
+SLIDE_FOCUS = '用简体中文制作详细学习幻灯片，讲清本集背景、人物、主要事件、时间线和因果。采用《丁丁历险记》漫画风格：黑色轮廓、鲜明平涂色块、时代场景与中文旁白。依据所选逐字稿，不虚构人名、数字或引语。'
 ARTICLE_PROMPT = '''仅根据选中的一集带时间戳逐字稿，把它改写成适合普通人阅读的详细中文图文讲解。语言说人话，短句，解释术语，保留关键背景、故事、机制和因果。不包含广告、片头混剪或无关闲聊。谨慎修正明确的识别错字，不确定人物/日期/金额不猜，不写原文不存在的事实。不长篇复制原话，尽量用自己的话重述。输出一个可由json.loads解析的JSON对象，不用Markdown围栏或额外解释，不插入[1]等引用符号。每个主要章节给出逐字稿中真实存在的时间戳，格式MM:SS，超过一小时可用HH:MM:SS。目标2000—3500汉字。像朋友把故事讲给你听，避免“基石、闭环、赋能、登顶、阵痛、体制藩篱、资本狂人、争霸、霸主、苟延残喘”等夸饰词，不用报纸式套话，讲机制而不是给人物下道德判词。标题20字左右，不使用“从X到Y：XX的崛起与沉沦”模板。解释术语再使用它，节目有不同说法时注明，不当成定论。结构：
 {"headline":"通俗有吸引力的标题，20字左右", "dek":"80—140字导读", "takeaways":["3—5条各40—80字的核心认识"], "sections":[{"title":"章节名", "paragraphs":["2—3段，每段100—180字"], "timestamp":"对应原文时间"}], "timeline":[{"date":"原文明确的年份或时期，不确定则写阶段", "title":"事件", "detail":"具体发生什么以及意义，50—100字"}], "people":[{"name":"人物或组织", "role":"身份", "detail":"在故事中的作用，40—80字"}], "connections":[{"from":"people中已有名字", "to":"people中已有名字", "label":"原文明确支持的关系或影响"}], "mechanism":{"title":"一个最重要的因果链", "steps":[{"label":"阶段", "detail":"为什么导致下一个阶段，40—80字"}]}, "glossary":[{"term":"3—6个术语", "meaning":"用生活例子解释"}], "caveats":["原文的局限或尚不确定的地方，不泛泛而谈"]}。
 sections至少6个、timeline至少5项、people至少4项、connections至少3项、mechanism.steps至少3项。忠实优先，素材不足可以缩短并在caveats说明。'''
@@ -210,7 +228,7 @@ def start_slides(state, ep, artifacts=None):
     if r.get('artifact_id'): return
     # Recover an ambiguous create before any retry: each focus contains a unique episode marker.
     if artifacts is None: artifacts = get_artifacts(r['notebook_id'])
-    related = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False)]
+    related = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False) and a.get('id',a.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
     failed_ids = set(r.get('failed_artifact_ids', []))
     failed_ids.update(a.get('id', a.get('artifact_id')) for a in related if str(a.get('status', '')).lower() in ['failed', 'error', '4'])
     failed_ids.difference_update(a.get('id',a.get('artifact_id')) for a in related if a.get('status') == 'completed')
@@ -228,7 +246,7 @@ def start_slides(state, ep, artifacts=None):
         r['slide_submitted_at'] = state['last_slide_submission_at']
         r['slide_status'] = 'submitting'; write_json(STATE_FILE, state)
         try:
-            a = cli('slides', 'create', r['notebook_id'], '--source-ids', r['source_id'], '--format', 'detailed_deck', '--language', 'zh-CN', '--focus', f"{ep['title']}；标识 {ep['id']}。{SLIDE_FOCUS}", '--confirm', '--json')
+            a = cli('slides', 'create', r['notebook_id'], '--source-ids', r['source_id'], '--format', 'detailed_deck', '--language', 'zh-CN', '--focus', f"标识 {ep['id']}。{SLIDE_FOCUS}", '--confirm', '--json')
         except RuntimeError as error:
             if 'Rate limited' in str(error) or 'RESOURCE_EXHAUSTED' in str(error):
                 r['slide_status'] = 'rate_limited'
@@ -253,7 +271,7 @@ def collect_slides(state, ep, artifacts=None):
     r = state['episodes'][ep['id']]
     if generation_waiting(r): return False
     if artifacts is not None:
-        matches = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False)]
+        matches = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False) and a.get('id',a.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
         if matches:
             r['all_artifact_ids'] = [a.get('artifact_id', a.get('id')) for a in matches]
             completed = next((a for a in matches if a.get('status') == 'completed'), None)
@@ -278,12 +296,14 @@ def collect_slides(state, ep, artifacts=None):
             r.pop('artifact_id', None); r['slide_status'] = 'retry_pending'
             write_json(STATE_FILE, state)
             return False
-        alternatives = [x for x in artifacts if ep['id'] in json.dumps(x, ensure_ascii=False) and x.get('status') != 'failed']
+        alternatives = [x for x in artifacts if ep['id'] in json.dumps(x, ensure_ascii=False) and x.get('status') != 'failed' and x.get('id',x.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
         if alternatives:
             best = next((x for x in alternatives if x.get('status') == 'completed'), alternatives[0])
             r['artifact_id'] = best.get('artifact_id', best.get('id')); write_json(STATE_FILE, state); return False
         r['slide_status'] = 'failed'
-        pause_generation(state, 'Remote slide generation failed; cause not provided, conservative cooldown')
+        submitted = dt.datetime.fromisoformat(r.get('slide_submitted_at') or now())
+        until = (submitted + dt.timedelta(seconds=CONFIG.get('unknown_failure_interval_seconds',1800))).isoformat(timespec='seconds')
+        pause_generation(state, 'Remote generation failed without a reason; not confirmed quota exhaustion',until)
         write_json(STATE_FILE, state)
         raise GenerationFailed('NotebookLM slide generation failed; cause not provided; generation paused')
     if status not in ['completed', 'complete', 'ready', '3']: write_json(STATE_FILE, state); return False
@@ -384,9 +404,8 @@ def run(args):
             write_json(STATE_FILE, state)
             print('COLLECT pending:', pending, flush=True)
             if not pending or time.monotonic() >= deadline: break
-            until = state.get('generation_cooldown_until')
             active = any(r.get('slide_status') in ['queued','submitting'] for r in state['episodes'].values())
-            if not active and until and dt.datetime.fromisoformat(until) > dt.datetime.now(TZ): break
+            if not active and cooldown_outlasts_budget(state,deadline): break
             paced_sleep(min(CONFIG.get('poll_interval_seconds',300),max(0,deadline-time.monotonic())))
         state['batches'][date]['finished_at'] = now()
         state['batches'][date]['complete'] = sum(state['episodes'][eid].get('status') == 'complete' for eid in state['batches'][date]['ids'])

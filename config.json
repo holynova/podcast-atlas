@@ -11,5 +11,6 @@
   "generation_initial_wait_seconds": 1200,
   "request_interval_seconds": 15,
   "failure_cooldown_seconds": 18000,
+  "unknown_failure_interval_seconds": 1800,
   "notebooklm_profile": "default"
 }

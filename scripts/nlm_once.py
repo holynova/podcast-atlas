@@ -8,4 +8,5 @@ os.environ['NOTEBOOKLM_RATE_LIMIT_MAX_RETRIES'] = '0'
 import notebooklm_tools.core.base as base
 base.DEFAULT_MAX_RETRIES = 0
 from notebooklm_tools.cli.main import cli_main
+import nlm_extensions  # Registers a project-local studio retry command.
 sys.exit(cli_main())

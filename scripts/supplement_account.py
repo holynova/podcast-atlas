@@ -23,7 +23,7 @@ def sync_primary(job,profile):
             primary.update(status='complete',profile=profile,updated_at=p.now())
             if changed: primary['publication_status']='pending'
             primary.pop('delegated_profile',None);primary.pop('last_error',None)
-        else:primary['delegated_profile']=profile
+        elif r.get('status') != 'superseded' and primary.get('status') != 'complete':primary['delegated_profile']=profile
     for batch in main['batches'].values():
         batch['complete']=sum(main['episodes'][eid].get('status')=='complete' for eid in batch['ids'])
     p.write_json(PRIMARY,main)
@@ -42,7 +42,7 @@ def run(profile,wait_minutes):
                 r.setdefault('attempt_history',{})[r['attempts_date']]=r.get('attempts',{});r['attempts']={}
             r['attempts_date']=today
         p.write_json(p.STATE_FILE,job);sync_primary(job,profile)
-        selected=[ep for ep in p.catalog() if ep['id'] in IDS]
+        selected=[ep for ep in p.catalog() if ep['id'] in IDS and job['episodes'][ep['id']].get('status') != 'superseded']
         selected.sort(key=lambda ep: sum(e.get('stage') == 'slides' for e in job['episodes'][ep['id']].get('errors',[])))
         for ep in selected:
             r=job['episodes'][ep['id']]
@@ -53,7 +53,7 @@ def run(profile,wait_minutes):
         deadline=time.monotonic()+wait_minutes*60
         while True:
             cache={}
-            for nb in {r.get('notebook_id') for r in job['episodes'].values() if r.get('status')!='complete'}-{None}:
+            for nb in {r.get('notebook_id') for r in job['episodes'].values() if r.get('status') not in ['complete','superseded']}-{None}:
                 if not p.notebook_check_due(job,nb):continue
                 try:cache[nb]=p.get_artifacts(nb)
                 except Exception as e:print('STATUS ERROR',str(e)[:200],flush=True)
@@ -78,11 +78,10 @@ def run(profile,wait_minutes):
                 break
             p.write_json(p.STATE_FILE,job);sync_primary(job,profile)
             print('ACCOUNT',profile,[(r['title'],r.get('slide_status')) for r in job['episodes'].values()],flush=True)
-            if all(r.get('status')=='complete' for r in job['episodes'].values()) or time.monotonic()>=deadline:break
+            if all(r.get('status') in ['complete','superseded'] for r in job['episodes'].values()) or time.monotonic()>=deadline:break
             active=any(r.get('slide_status') in ['queued','submitting'] for r in job['episodes'].values())
             if not active and not job['notebooks']:break
-            until=job.get('generation_cooldown_until')
-            if not active and until and dt.datetime.fromisoformat(until)>dt.datetime.now(p.TZ):break
+            if not active and p.cooldown_outlasts_budget(job,deadline):break
             p.paced_sleep(min(p.CONFIG['poll_interval_seconds'],max(0,deadline-time.monotonic())))
 
 if __name__=='__main__':
