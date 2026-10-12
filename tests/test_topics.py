@@ -1,9 +1,20 @@
-import importlib.util,unittest
+import importlib.util,json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('site_build',Path(__file__).resolve().parents[1]/'scripts/build.py');b=importlib.util.module_from_spec(spec);spec.loader.exec_module(b)
 
 class TopicTests(unittest.TestCase):
+    def test_reviewed_images_use_explicit_chapter_mapping_and_require_real_assets(self):
+        with tempfile.TemporaryDirectory() as temp,patch.object(b,'ROOT',Path(temp)):
+            directory=Path(temp)/'assets/illustrations/e';directory.mkdir(parents=True)
+            (directory/'2.webp').write_bytes(b'picture')
+            manifest=directory/'pages.json';manifest.write_text(json.dumps({'chapter_images':{'1':'2.webp'}}))
+            self.assertEqual(b.reviewed_chapter_images('e',3),{1:directory/'2.webp'})
+            manifest.write_text(json.dumps({'chapter_images':{'1':'missing.webp'}}))
+            with self.assertRaises(ValueError):b.reviewed_chapter_images('e',3)
+            manifest.write_text(json.dumps({'chapter_images':{'3':'2.webp'}}))
+            with self.assertRaises(ValueError):b.reviewed_chapter_images('e',3)
+
     def test_same_name_topics_have_distinct_urls_and_never_mix_episodes(self):
         rows=[{'id':'a','show':'半拿铁','topic':'同名专题','order':1,'title':'半拿铁独有故事','date':'2026-01-01','available':True},{'id':'b','show':'知行小酒馆','topic':'同名专题','order':1,'title':'小酒馆独有故事','date':'2026-01-02','available':True}]
         with patch.object(b,'QUEUE',rows),patch.object(b,'TOPICS',['同名专题']),patch.object(b,'TOPIC_GROUPS',[('半拿铁','同名专题'),('知行小酒馆','同名专题')]),patch.object(b,'ARTICLES',{}):

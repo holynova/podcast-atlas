@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import collections, html, json, pathlib, shutil
+import collections, html, json, pathlib, re, shutil
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DIST = ROOT / 'dist'
 CFG = json.loads((ROOT / 'config.json').read_text())
@@ -68,16 +68,32 @@ def timestamp_seconds(s):
     parts = list(map(int, s.split(':')))
     return sum(v * 60 ** i for i,v in enumerate(reversed(parts)))
 
+def reviewed_chapter_images(eid, chapter_count):
+    directory = ROOT / 'assets/illustrations' / eid
+    manifest = directory / 'pages.json'
+    mapping = json.loads(manifest.read_text()).get('chapter_images', {}) if manifest.exists() else {}
+    images = {}
+    for chapter, filename in mapping.items():
+        if not re.fullmatch(r'\d+', chapter) or int(chapter) >= chapter_count or not re.fullmatch(r'\d+\.webp', filename):
+            raise ValueError('Invalid reviewed chapter image: ' + eid)
+        image = directory / filename
+        if not image.is_file(): raise ValueError('Missing reviewed chapter image: ' + eid)
+        images[int(chapter)] = image
+    return images
+
 def episode(ep, a):
     eid = ep['id']; pdf = (ROOT / 'assets/slides' / (eid + '.pdf')).exists()
     samples = sorted((ROOT / 'assets/illustrations' / eid).glob('*.webp'))
+    reviewed = reviewed_chapter_images(eid, len(a['sections']))
     chapter_links = ''.join(f'<a href="#chapter-{i}"><span>{i+1:02d}</span>{E(s["title"])}</a>' for i,s in enumerate(a['sections']))
     sections = ''
     for i,s in enumerate(a['sections']):
         paragraphs = ''.join(f'<p>{E(p)}</p>' for p in s['paragraphs'])
         figure = ''
-        if i % 2 == 0 and len(samples) > 1:
+        sample = reviewed.get(i)
+        if not reviewed and i % 2 == 0 and len(samples) > 1:
             sample = samples[min(i // 2 + 1, len(samples)-1)]
+        if sample:
             figure = f'<figure><img src="/assets/illustrations/{eid}/{sample.name}" alt="本集漫画幻灯片：{E(s["title"])}相关内容" loading="lazy" width="960" height="540"><figcaption>本集漫画幻灯片选页 · 完整故事见 PDF</figcaption></figure>'
         sections += f'<section class="chapter" id="chapter-{i}"><div class="chapter-kicker"><span>CHAPTER {i+1:02d}</span><a href="{E(ep["url"])}" target="_blank" rel="noopener noreferrer">原节目 {E(s["timestamp"])} ↗</a></div><h2>{E(s["title"])}</h2>{paragraphs}{figure}</section>'
     timeline = ''.join(f'<li><span>{E(t["date"])}</span><div><h3>{E(t["title"])}</h3><p>{E(t["detail"])}</p></div></li>' for t in a['timeline'])
@@ -92,7 +108,7 @@ def episode(ep, a):
     siblings = [x for x in QUEUE if x['topic'] == ep['topic'] and x['show'] == ep['show'] and x['id'] in ARTICLES]
     position = next(i for i,x in enumerate(siblings) if x['id'] == eid)
     next_ep = siblings[position + 1] if position + 1 < len(siblings) else None
-    next_link = f'<a href="{article_url(next_ep["id"])}">接着读：{E(ARTICLES[next_ep["id"]]["headline"])} →</a>' if next_ep else f'<a href="{topic_url(ep["topic"])}">回到专题，看看后面的故事 →</a>'
+    next_link = f'<a href="{article_url(next_ep["id"])}">接着读：{E(ARTICLES[next_ep["id"]]["headline"])} →</a>' if next_ep else f'<a href="{topic_url(ep["topic"],ep["show"])}">回到专题，看看后面的故事 →</a>'
     slides = f'<a class="button" href="/assets/slides/{eid}.pdf" target="_blank" rel="noopener">查看漫画幻灯片 ↗</a><a class="text-link" href="/assets/slides/{eid}.pdf" download>下载 PDF ↓</a>' if pdf else '<span class="notice">文字讲解已整理，可以先读。漫画幻灯片会逐步补上。</span>'
     body = f'''<div class="wrap article-intro"><a class="breadcrumb" href="{topic_url(ep['topic'],ep['show'])}">← {E(ep['topic'])}</a><p class="eyebrow">{E(ep['show'])} / 第 {ep['order']} 集 · {ep['date']}</p><h1>{E(a['headline'])}</h1><p class="article-dek">{E(a['dek'])}</p><div class="hero-actions">{slides}<a class="text-link" href="{E(ep['url'])}" target="_blank" rel="noopener noreferrer">听原节目 ↗</a></div></div><div class="wrap article-layout"><aside class="toc"><span class="eyebrow">这集怎么读</span>{chapter_links}<a href="#timeline">故事时间线</a><a href="#people">人物与关系</a><a href="#mechanism">理清因果</a><a href="#glossary">术语说人话</a></aside><div class="article-content"><section class="takeaways"><p class="eyebrow">先记住这几件事</p><ul>{takeaways}</ul></section>{sections}<section class="chapter" id="timeline"><p class="eyebrow">PUT IT IN ORDER</p><h2>把故事放回时间里。</h2><ol class="timeline">{timeline}</ol></section><section class="chapter" id="people"><p class="eyebrow">WHO SHAPED THE STORY</p><h2>谁，推动了这个故事？</h2><div class="people-grid">{people}</div><h3 class="subheading">把关系连起来</h3><ul class="connections">{connections}</ul></section><section class="chapter" id="mechanism"><p class="eyebrow">CONNECT THE DOTS</p><h2>{E(a['mechanism']['title'])}</h2><ol class="mechanism">{flow}</ol></section><section class="chapter" id="glossary"><p class="eyebrow">IN PLAIN LANGUAGE</p><h2>这些词，其实不难懂。</h2><dl class="glossary">{terms}</dl></section><section class="source-note"><h3>读到这里，也保留一点疑问。</h3><ul>{caveats}</ul><p>本文根据《{E(ep['show'])}》{E(ep['title'])}逐字稿整理，不是逐字复制。文稿和AI整理都可能出错；章节旁标出原节目时间，方便回听。图像为AI生成的漫画演绎。</p><a href="{E(ep['url'])}" target="_blank" rel="noopener noreferrer">查看原节目与作者 ↗</a></section><nav class="next-story" aria-label="继续阅读">{next_link}</nav></div></div>'''
     return shell(a['headline'], body, a['dek'])

@@ -37,8 +37,9 @@ for file in (ROOT / 'content').glob('*.json'):
     if pdf.exists():
         data = get('/assets/slides/'+eid+'.pdf', 'application/pdf')
         if data[:5] != b'%PDF-' or hashlib.sha256(data).digest() != hashlib.sha256(pdf.read_bytes()).digest(): raise RuntimeError('Live PDF mismatch')
-    cover = ROOT / 'assets/illustrations' / eid / '0.webp'
-    if cover.exists(): get('/assets/illustrations/'+eid+'/0.webp', 'image/webp')
+    for image in sorted((ROOT / 'assets/illustrations' / eid).glob('*.webp')):
+        data = get('/assets/illustrations/'+eid+'/'+image.name, 'image/webp')
+        if hashlib.sha256(data).digest() != hashlib.sha256(image.read_bytes()).digest(): raise RuntimeError('Live illustration mismatch: '+eid+'/'+image.name)
     verified.append(eid)
 with (ROOT / 'state/runner.lock').open('w') as lock:
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
