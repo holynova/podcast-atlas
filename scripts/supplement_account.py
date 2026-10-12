@@ -34,7 +34,7 @@ def sync_primary(job,profile):
         batch['complete']=sum(main['episodes'][eid].get('status')=='complete' for eid in batch['ids'])
     p.write_json(PRIMARY,main)
 
-def run(profile,wait_minutes):
+def run(profile,wait_minutes,collect_only=False):
     p.CONFIG['notebooklm_profile']=profile
     p.STATE_FILE=p.ROOT/'state/accounts'/(profile+'.json')
     with (p.ROOT/'state/runner.lock').open('w') as lock:
@@ -67,7 +67,7 @@ def run(profile,wait_minutes):
                     if p.collect_slides(job,ep,artifacts):
                         r['status']='complete';print('COMPLETE',ep['title'],flush=True)
                 except Exception as e:p.mark_error(job,ep['id'],'slides' if isinstance(e,p.GenerationFailed) else 'download',e)
-            for ep in selected:
+            for ep in selected if not collect_only else []:
                 r=job['episodes'][ep['id']]
                 if r.get('status')=='complete' or r.get('artifact_id') and r.get('slide_status')!='failed':continue
                 if not all(p.remaining_attempts(r,k) for k in ['source','article','slides','download']):continue
@@ -93,4 +93,4 @@ def run(profile,wait_minutes):
             p.paced_sleep(min(p.CONFIG['poll_interval_seconds'],max(0,deadline-time.monotonic())))
 
 if __name__=='__main__':
-    ap=argparse.ArgumentParser();ap.add_argument('--profile',choices=['account-b'],default='account-b');ap.add_argument('--wait-minutes',type=float,default=60);args=ap.parse_args();run(args.profile,args.wait_minutes)
+    ap=argparse.ArgumentParser();ap.add_argument('--profile',choices=['account-b'],default='account-b');ap.add_argument('--wait-minutes',type=float,default=60);ap.add_argument('--collect-only',action='store_true');args=ap.parse_args();run(args.profile,args.wait_minutes,args.collect_only)
