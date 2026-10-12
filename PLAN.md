@@ -8,11 +8,14 @@
 cd /Users/sym/code/podcast-atlas
 # 只看本轮计划，不调用NotebookLM、不保存新批次：
 python3 scripts/cycle.py --plan-only
-# 统一协调两个账号，每轮合计最多5个幻灯片提交机会：
-python3 scripts/cycle.py --slide-limit 5 --article-limit 5 --wait-minutes 150
-# 先整理文字，不提交幻灯片：
+# 第一阶段：先整理文字，不提交幻灯片；结束后校对并发布文字版：
 python3 scripts/cycle.py --text-only --article-limit 5 --wait-minutes 150
+# 第二阶段：同周期复用目标与已整理文字，补齐最多5套幻灯片：
+python3 scripts/cycle.py --slide-limit 5 --article-limit 5 --wait-minutes 150
+# 结束后校对新PDF和插图，再发布补齐版。
 ```
+
+文字阶段结束后先发布，之后再运行幻灯片阶段，避免文字等待PPT。两个阶段和中间发布共用同一150分钟续做窗口，第二次调用不会重置预算；制作进程与部署命令顺序执行。
 
 周期记录在state/progress.json.cycles。周期按config.json.cycle_anchor_at划分，每5小时一个窗口，不因跨午夜重置。同一窗口重跑复用目标、尝试与远端ID，不新增一批。每集每个步骤当天最多3次失败，历史记录保留；次日只重置当天计数。幻灯片未知失败与明确限流均按5小时退避；更晚的真实额度恢复时间则延期。冷却、排队和已记录的失败不重复计数。同一集在本周期最多提交一次，结果不明先查远端。
 

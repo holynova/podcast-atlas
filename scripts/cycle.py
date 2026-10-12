@@ -215,13 +215,18 @@ def can_continue(cycle,main,second,deadline):
             return True
     return False
 
+def remaining_window(cycle,requested_minutes,moment=None):
+    moment=moment or dt.datetime.now(p.TZ)
+    elapsed=max(0,(moment-dt.datetime.fromisoformat(cycle['started_at'])).total_seconds())
+    return max(0,min(requested_minutes*60,150*60-elapsed))
+
 def run(args):
     items=p.catalog()
-    deadline=time.monotonic()+args.wait_minutes*60
     with (p.ROOT/'state/cycle.lock').open('w') as run_lock:
         fcntl.flock(run_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         key=cycle_key();main=read(MAIN)
         cycle=plan(main,items,key,args.slide_limit,args.article_limit)
+        deadline=time.monotonic()+remaining_window(cycle,args.wait_minutes)
         if args.plan_only:
             print(json.dumps(cycle,ensure_ascii=False,indent=2));return
         first=True

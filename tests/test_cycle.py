@@ -81,6 +81,11 @@ class CycleTests(unittest.TestCase):
         with patch.object(c.b,'IDS',[]):
             self.assertTrue(c.can_continue(cycle,main,{'episodes':{}},time.monotonic()+9000))
 
+    def test_text_and_slides_share_one_run_window(self):
+        start=dt.datetime.now(p.TZ);cycle={'started_at':start.isoformat()}
+        self.assertEqual(c.remaining_window(cycle,150,start+dt.timedelta(minutes=25)),125*60)
+        self.assertEqual(c.remaining_window(cycle,150,start+dt.timedelta(minutes=151)),0)
+
     def test_unknown_remote_delivery_is_reserved_before_mutation(self):
         ep={'id':'a'};job={'episodes':{'a':{'notebook_id':'nb','source_id':'src'}},'notebooks':{}}
         state={'key':'slot','slide_ids':['a'],'attempted_slide_ids':[],'submitted_slide_ids':[],'slide_limit':5}
