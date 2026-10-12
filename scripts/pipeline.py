@@ -120,11 +120,14 @@ def cooldown_outlasts_budget(state, deadline):
     remaining = (dt.datetime.fromisoformat(until)-dt.datetime.now(TZ)).total_seconds()
     return remaining > 0 and remaining >= max(0,deadline-time.monotonic())
 
-def cli(*args, timeout=300):
+def pace_request():
     global _LAST_REQUEST
     if _LAST_REQUEST is not None:
         paced_sleep(max(0, CONFIG.get('request_interval_seconds',15) - (time.monotonic()-_LAST_REQUEST)))
     _LAST_REQUEST = time.monotonic()
+
+def cli(*args, timeout=300):
+    pace_request()
     env = network_env()
     env['NOTEBOOKLM_RATE_LIMIT_MAX_RETRIES'] = '0'
     binary = pathlib.Path(os.environ.get('NLM_BIN', '/Users/sym/.local/bin/nlm'))
@@ -309,6 +312,7 @@ def collect_slides(state, ep, artifacts=None):
     if status not in ['completed', 'complete', 'ready', '3']: write_json(STATE_FILE, state); return False
     target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix('.part.pdf')
+    pace_request()
     cli_result = subprocess.run(['/Users/sym/.local/bin/nlm', 'download', 'slide-deck', r['notebook_id'], '--id', r['artifact_id'], '--output', str(temp), '--no-progress'], capture_output=True, text=True, timeout=300,env=network_env())
     if cli_result.returncode: raise RuntimeError(cli_result.stderr or cli_result.stdout)
     if not temp.exists() or temp.read_bytes()[:5] != b'%PDF-': raise ValueError('Downloaded slide is not a PDF')

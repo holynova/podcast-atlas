@@ -7,6 +7,12 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import pipeline as p
 
 class GenerationTests(unittest.TestCase):
+    def test_shared_request_pacing_waits_only_remaining_interval(self):
+        with patch.object(p,'_LAST_REQUEST',100),patch.object(p.time,'monotonic',side_effect=[106,115]),patch.object(p,'paced_sleep') as sleep:
+            p.pace_request()
+            sleep.assert_called_once_with(9)
+            self.assertEqual(p._LAST_REQUEST,115)
+
     def test_account_is_pinned_without_switching_saved_default(self):
         with patch.dict(p.os.environ,{'NLM_PROFILE':'account-b','HTTPS_PROXY':'http://localhost:7897'}):
             self.assertEqual(p.network_env()['NLM_PROFILE'],p.CONFIG['notebooklm_profile'])
