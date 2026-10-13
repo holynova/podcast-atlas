@@ -4,6 +4,19 @@ from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('site_build',Path(__file__).resolve().parents[1]/'scripts/build.py');b=importlib.util.module_from_spec(spec);spec.loader.exec_module(b)
 
 class TopicTests(unittest.TestCase):
+    def test_repeated_source_timestamps_show_warning_without_hiding_valid_times(self):
+        eid,original=next(iter(b.ARTICLES.items()))
+        article=__import__('copy').deepcopy(original)
+        article['sections'][0]['timestamp_quality']='source_repeated'
+        article['sections'][1].pop('timestamp_quality',None)
+        ep=next(row for row in b.QUEUE if row['id']==eid)
+        page=b.episode(ep,article)
+        first=page.split('id="chapter-0"')[1].split('</section>')[0]
+        second=page.split('id="chapter-1"')[1].split('</section>')[0]
+        self.assertIn('文稿时间异常 · 听原节目',first)
+        self.assertNotIn('原节目 '+article['sections'][0]['timestamp'],first)
+        self.assertIn('原节目 '+article['sections'][1]['timestamp'],second)
+
     def test_reviewed_images_use_explicit_chapter_mapping_and_require_real_assets(self):
         with tempfile.TemporaryDirectory() as temp,patch.object(b,'ROOT',Path(temp)):
             directory=Path(temp)/'assets/illustrations/e';directory.mkdir(parents=True)

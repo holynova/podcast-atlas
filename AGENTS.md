@@ -3,6 +3,8 @@
 - 唯一源码分支main。/Users/sym/code/my-data/xiaoyuzhou仅只读；不修改私有项目，不抓新节目，不将原文、认证或内部错误日志放入仓库或dist。
 - 先读PLAN.md、config.json、state/progress.json与state/queue.json。当前调度每5小时一次，两账号合计目标5套幻灯片；旧“每天13:00、10集”已被替代。
 - 第一阶段运行 `python3 scripts/cycle.py --text-only --article-limit 5 --wait-minutes 150`，结束后先校对并发布文字；第二阶段运行 `python3 scripts/cycle.py --slide-limit 5 --article-limit 5 --wait-minutes 150`，结束后校对PDF与选图再发布。两阶段及中间发布共用150分钟窗口，不重置预算。state/progress.json.cycles保存周期目标，同周期重跑不追加、不重复提交。
+- 用户主动要求并行预生产网页文字时，可另建state/progress.json.text_batches批次，按专题分配互不重复的单集，由明确授权的sub agent直接阅读本地文稿、独立改写content JSON；此类文字批次不受自动化每轮5篇的上限，不占用或更改幻灯片周期目标。所有文章写入仍短暂获取runner.lock，主代理统一校对、同步进度并发布；不并发调用NotebookLM，不把文字就绪记作幻灯片完成。
+- 文字代理批次为running时，cycle.py先返回等待状态，不调用NotebookLM、不保存新幻灯片周期；避免自动续做与文字发布重叠。文字经发布验证后关闭该批次，后续定时周期继续PPT制作。
 - 各步骤分别记录；complete要求文字及PDF齐备，publication_status=verified要求HTTPS验证通过。排队、提交和下载都不能冒充已上线。失败与历史不能删除；同集同步骤当天最多3次失败，次日保留历史后重置日计数。
 - NotebookLM制作和排查只用nlm CLI。详细中文、丁丁历险记漫画风格，一集一套、指定单集source ID。两账号独立保存认证上下文、来源、笔记本、产物ID和冷却，不切换CLI保存的全局默认账号。
 - default优先中国互联网故事；account-b优先苹果公司简史5集、再日本漫画史7集，并保留百度上半场补齐。config.json.account_b_series_ids是明确队列；QQ已由default完成时记superseded，禁止重复制作。

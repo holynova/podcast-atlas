@@ -23,6 +23,8 @@ python3 scripts/cycle.py --slide-limit 5 --article-limit 5 --wait-minutes 150
 
 ## 内容分工与优先级
 
+用户可主动要求批量预生产网页文字。2026-10-13已授权5个sub agent补齐现有48个专题单集：互联网与半拿铁股市9集、苹果与日漫9集、硅谷/芯片/任天堂12集、小酒馆股市/房产/养老10集、饮料/科龙8集。按可用并发分批启动，总批次保存在state/progress.json.text_batches，单集分配互不重复。直接根据本地文稿改写并校对content JSON，不调用NotebookLM；文字可独立上线，已有PPT队列、远端ID、失败历史与冷却保留。完成专题后再从新到旧处理单集精选。
+
 只读取 /Users/sym/code/my-data/xiaoyuzhou 的现有文稿，不修改私有项目、不抓新节目。现有487集可用、23集缺少文稿。缺失文稿保留目录，不用节目简介补位。
 
 - default：优先中国互联网故事，然后按固定专题顺序、剩余单集从新到旧。

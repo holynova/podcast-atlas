@@ -1,0 +1,23 @@
+{
+  "pages": 15,
+  "samples": [
+    0,
+    2,
+    3,
+    4,
+    5,
+    7,
+    11,
+    13
+  ],
+  "reviewed": true,
+  "chapter_images": {
+    "0": "1.webp",
+    "1": "2.webp",
+    "2": "3.webp",
+    "3": "4.webp",
+    "4": "5.webp",
+    "5": "6.webp",
+    "6": "7.webp"
+  }
+}

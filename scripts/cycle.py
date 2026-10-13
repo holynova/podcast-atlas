@@ -225,6 +225,10 @@ def run(args):
     with (p.ROOT/'state/cycle.lock').open('w') as run_lock:
         fcntl.flock(run_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         key=cycle_key();main=read(MAIN)
+        active_text_batches=[name for name,batch in main.get('text_batches',{}).items() if batch.get('status')=='running']
+        if active_text_batches:
+            print('TEXT BATCH ACTIVE: local article agents are working; resume the NotebookLM cycle after review and publication.',flush=True)
+            return
         cycle=plan(main,items,key,args.slide_limit,args.article_limit)
         deadline=time.monotonic()+remaining_window(cycle,args.wait_minutes)
         if args.plan_only:

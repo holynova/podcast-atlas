@@ -89,13 +89,14 @@ def episode(ep, a):
     sections = ''
     for i,s in enumerate(a['sections']):
         paragraphs = ''.join(f'<p>{E(p)}</p>' for p in s['paragraphs'])
+        time_label = '文稿时间异常 · 听原节目' if s.get('timestamp_quality') == 'source_repeated' else '原节目 ' + s['timestamp']
         figure = ''
         sample = reviewed.get(i)
         if not reviewed and i % 2 == 0 and len(samples) > 1:
             sample = samples[min(i // 2 + 1, len(samples)-1)]
         if sample:
             figure = f'<figure><img src="/assets/illustrations/{eid}/{sample.name}" alt="本集漫画幻灯片：{E(s["title"])}相关内容" loading="lazy" width="960" height="540"><figcaption>本集漫画幻灯片选页 · 完整故事见 PDF</figcaption></figure>'
-        sections += f'<section class="chapter" id="chapter-{i}"><div class="chapter-kicker"><span>CHAPTER {i+1:02d}</span><a href="{E(ep["url"])}" target="_blank" rel="noopener noreferrer">原节目 {E(s["timestamp"])} ↗</a></div><h2>{E(s["title"])}</h2>{paragraphs}{figure}</section>'
+        sections += f'<section class="chapter" id="chapter-{i}"><div class="chapter-kicker"><span>CHAPTER {i+1:02d}</span><a href="{E(ep["url"])}" target="_blank" rel="noopener noreferrer">{E(time_label)} ↗</a></div><h2>{E(s["title"])}</h2>{paragraphs}{figure}</section>'
     timeline = ''.join(f'<li><span>{E(t["date"])}</span><div><h3>{E(t["title"])}</h3><p>{E(t["detail"])}</p></div></li>' for t in a['timeline'])
     people = ''.join(f'<article><span class="person-initial">{E(p["name"][:1])}</span><h3>{E(p["name"])}</h3><small>{E(p["role"])}</small><p>{E(p["detail"])}</p></article>' for p in a['people'])
     connections = ''.join(f'<li><strong>{E(c["from"])}</strong><span>{E(c["label"])} <b>→</b></span><strong>{E(c["to"])}</strong></li>' for c in a['connections'])
