@@ -13,7 +13,8 @@ remote_sha = subprocess.check_output(['git','-c','http.version=HTTP/1.1','-c','h
 if sha != remote_sha: raise SystemExit('Local main is not the pushed source state')
 def get(path, expected=None):
     with tempfile.NamedTemporaryFile(dir=ROOT/'work') as file:
-        result = subprocess.run(['curl','-fLsS','--http1.1','--retry','2','--retry-all-errors','--retry-delay','1','--max-time','30','--output',file.name,'--write-out','%{content_type}',domain+path],capture_output=True,text=True,env=env,check=True)
+        timeout = '180' if path.endswith('.pdf') else '30'
+        result = subprocess.run(['curl','-fLsS','--compressed','--http1.1','--retry','2','--retry-all-errors','--retry-delay','1','--max-time',timeout,'--output',file.name,'--write-out','%{content_type}',domain+path],capture_output=True,text=True,env=env,check=True)
         mime = result.stdout.split(';')[0].strip();data = pathlib.Path(file.name).read_bytes()
         if expected and mime not in ([expected] if isinstance(expected,str) else expected): raise RuntimeError(f'{path}: unexpected content type {mime}')
         return data

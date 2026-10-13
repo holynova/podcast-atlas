@@ -69,7 +69,7 @@ function render() {
 async function loadIndex() {
   if (!indexPromise) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
+    const timer = setTimeout(() => controller.abort(), 30000);
     indexPromise = fetch(dialog.dataset.searchIndex, {signal:controller.signal}).then(r => {
       if (!r.ok) throw new Error('Search unavailable');
       return r.json();
