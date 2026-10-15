@@ -105,7 +105,7 @@ def episode(ep, a):
     takeaways = ''.join(f'<li>{E(t)}</li>' for t in a['takeaways'])
     caveats = ''.join(f'<li>{E(c)}</li>' for c in a['caveats'])
     citations = ''.join(f'<li><a href="{E(c["url"])}" target="_blank" rel="noopener noreferrer">{E(c["title"])} ↗</a></li>' for c in a.get('editorial_sources', []))
-    if citations: caveats += '<li>姓名核对参考：<ul>' + citations + '</ul></li>'
+    if citations: caveats += '<li>校对参考：<ul>' + citations + '</ul></li>'
     siblings = [x for x in QUEUE if x['topic'] == ep['topic'] and x['show'] == ep['show'] and x['id'] in ARTICLES]
     position = next(i for i,x in enumerate(siblings) if x['id'] == eid)
     next_ep = siblings[position + 1] if position + 1 < len(siblings) else None
