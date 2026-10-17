@@ -18,8 +18,8 @@ remote_sha = subprocess.check_output(['git','-c','http.version=HTTP/1.1','-c','h
 if sha != remote_sha: raise SystemExit('Local main is not the pushed source state')
 def get(path, expected=None):
     with tempfile.NamedTemporaryFile(dir=ROOT/'work') as file:
-        timeout = '600' if path.endswith('.pdf') else '30'
-        protocol = '--http2' if path.endswith('.pdf') else '--http1.1'
+        timeout = '600' if path.endswith('.pdf') else '90'
+        protocol = '--http2'
         url = domain + path + ('?verify=' + sha if path.endswith('.pdf') else '')
         result = subprocess.run(['curl','-fLsS','--compressed',protocol,'--retry','2','--retry-all-errors','--retry-delay','1','--max-time',timeout,'--output',file.name,'--write-out','%{content_type}',url],capture_output=True,text=True,env=env,check=True)
         mime = result.stdout.split(';')[0].strip();data = pathlib.Path(file.name).read_bytes()
