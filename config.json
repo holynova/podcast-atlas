@@ -27,7 +27,7 @@
     "6718a4cbdb2cf82757560ba0"
   ],
   "cycle_interval_hours": 5,
-  "cycle_slide_limit": 5,
+  "cycle_slide_limit": 20,
   "cycle_article_limit": 5,
   "text_first": true,
   "cycle_anchor_at": "2026-10-12T15:55:23+00:00"

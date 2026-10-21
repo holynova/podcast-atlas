@@ -58,13 +58,17 @@ def checkpoint(cycle,job):
     if p.STATE_FILE==MAIN:job.setdefault('cycles',{})[cycle['key']]=copy.deepcopy(cycle)
 
 def balanced(candidates,main,limit):
+    per_account=(limit+1)//2
     pools={profile:[ep for ep in candidates if owner(ep['id'],main)==profile] for profile in ['default','account-b']}
     order=b.SERIES_IDS+b.SUPPLEMENT_IDS
     pools['account-b'].sort(key=lambda ep:order.index(ep['id']) if ep['id'] in order else len(order))
     result=[]
-    while len(result)<limit and any(pools.values()):
+    counts={'default':0,'account-b':0}
+    while len(result)<limit and any(pools[p] for p in ['default','account-b'] if counts[p]<per_account):
         for profile in ['default','account-b']:
-            if pools[profile] and len(result)<limit:result.append(pools[profile].pop(0)['id'])
+            if pools[profile] and counts[profile]<per_account and len(result)<limit:
+                result.append(pools[profile].pop(0)['id'])
+                counts[profile]+=1
     return result
 
 def stage_eligible(ep,main,stages):
