@@ -3,6 +3,7 @@ import argparse, fcntl, hashlib, json, pathlib, subprocess, tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pipeline import now, write_json, network_env
 from publication_assets import verified_unchanged_asset
+from https_batch import HttpsBatch
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(); p.add_argument('--deployment-id', required=True); args = p.parse_args()
 config = json.loads((ROOT / 'config.json').read_text()); domain = config['domain']
@@ -16,15 +17,27 @@ if branch != 'main': raise SystemExit('Publication must use main')
 env = network_env()
 remote_sha = subprocess.check_output(['git','-c','http.version=HTTP/1.1','-c','http.proxy='+env.get('HTTPS_PROXY',''), 'ls-remote', 'origin', 'refs/heads/main'], cwd=ROOT, text=True,env=env).split()[0]
 if sha != remote_sha: raise SystemExit('Local main is not the pushed source state')
+from build import TOPIC_GROUPS,topic_url
+paths = ['/', '/style.css', '/app.js', '/search.js', '/search-index.json', '/topics/']
+paths += [topic_url(topic,show) for show,topic in TOPIC_GROUPS]
+manifest_path = ROOT / 'dist/asset-manifest.json'
+if manifest_path.exists():
+    paths.append('/asset-manifest.json')
+    paths += ['/'+rel for rel in json.loads(manifest_path.read_text())['files']]
+for file in (ROOT/'content').glob('*.json'):
+    eid = file.stem
+    paths.append('/episodes/'+eid+'/')
+    candidates = [ROOT/'assets/slides'/(eid+'.pdf'), *sorted((ROOT/'assets/illustrations'/eid).glob('*.webp'))]
+    for asset in candidates:
+        if asset.exists() and not verified_unchanged_asset(ROOT,asset,eid,previous): paths.append('/'+asset.relative_to(ROOT).as_posix())
+def url_for(path):
+    return domain + path + ('?verify=' + sha if path.endswith('.pdf') else '')
+transport = HttpsBatch(ROOT/'work', env)
+transport.fetch([url_for(path) for path in paths])
 def get(path, expected=None):
-    with tempfile.NamedTemporaryFile(dir=ROOT/'work') as file:
-        timeout = '600' if path.endswith('.pdf') else '90'
-        protocol = '--http2'
-        url = domain + path + ('?verify=' + sha if path.endswith('.pdf') else '')
-        result = subprocess.run(['curl','-fLsS','--compressed',protocol,'--retry','2','--retry-all-errors','--retry-delay','1','--max-time',timeout,'--output',file.name,'--write-out','%{content_type}',url],capture_output=True,text=True,env=env,check=True)
-        mime = result.stdout.split(';')[0].strip();data = pathlib.Path(file.name).read_bytes()
-        if expected and mime not in ([expected] if isinstance(expected,str) else expected): raise RuntimeError(f'{path}: unexpected content type {mime}')
-        return data
+    data, mime = transport.get(url_for(path))
+    if expected and mime not in ([expected] if isinstance(expected,str) else expected): raise RuntimeError(f'{path}: unexpected content type {mime}')
+    return data
 if ('v'+version).encode() not in get('/', 'text/html'): raise SystemExit('Live version mismatch')
 if get('/style.css','text/css') != (ROOT/'style.css').read_bytes():raise RuntimeError('Live CSS mismatch')
 for module in ['app.js','search.js']:
