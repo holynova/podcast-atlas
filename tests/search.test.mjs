@@ -14,3 +14,4 @@ test('same topic remains isolated by podcast',()=>assert.deepEqual(searchEntries
 test('supports fullwidth Latin input and case folding',()=>assert.equal(searchEntries(entries,'ｖｉｓｉｃａｌｃ')[0].id,'apple'));
 test('empty query recommends ready articles only',()=>assert.deepEqual(searchEntries(entries,'   ').map(x=>x.id),['stock-a','apple']));
 test('literal markup has no special search meaning',()=>assert.equal(searchEntries(entries,'<script>').length,0));
+test('lightweight summaries remain searchable before full text arrives',()=>assert.equal(searchEntries([{...entries[0],text:'',summary:'融资与组织协作的变化'}],'组织协作')[0].id,'apple'));

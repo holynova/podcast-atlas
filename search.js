@@ -6,7 +6,7 @@ export function searchEntries(entries, query, show = 'all') {
   return entries.filter(e => show === 'all' || e.show === show).map(entry => {
     const title = normalize(entry.title + ' ' + entry.original_title);
     const meta = normalize(entry.show + ' ' + entry.topic + ' ' + entry.date);
-    const body = normalize(entry.text);
+    const body = normalize((entry.text || '') + ' ' + (entry.summary || ''));
     if (!tokens.length) return entry.ready ? {entry, score: 0} : null;
     if (!tokens.every(t => (title + ' ' + meta + ' ' + body).includes(t))) return null;
     return {entry, score: tokens.reduce((n,t) => n + (title.includes(t) ? 8 : meta.includes(t) ? 4 : 1), 0) + (entry.ready ? 2 : 0)};

@@ -19,6 +19,8 @@ npm run build
 npm run dev
 ```
 
+构建封面缩略图需要 Pillow；会优先复用已配置的本地运行时，也可用 `PODCAST_IMAGE_PYTHON` 指定带 Pillow 的 Python。页面使用系统中文字体，首页分批显示 24 集，搜索先加载轻量目录、再按需加载正文。带内容指纹的样式、脚本、封面和搜索分片使用长期缓存；已校对 PDF 保留可更新的原地址。
+
 See `config.json` for the read-only source directory, `PLAN.md` for production order and `state/progress.json` for local progress. To resume a cycle, run `python3 scripts/cycle.py --slide-limit 5 --article-limit 5 --wait-minutes 150`. Use `--text-only` to prepare articles first, or `--plan-only` to inspect the shared cycle without making requests. NotebookLM requires an authenticated `nlm` CLI. PDF previews use the bundled Python/Pillow/pypdf and Poppler runtime paths configured in `scripts/render_slides.py`.
 
 ## 发布 / Deploy

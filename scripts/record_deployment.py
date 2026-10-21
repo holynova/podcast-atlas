@@ -32,6 +32,18 @@ for module in ['app.js','search.js']:
 index=json.loads(get('/search-index.json','application/json'))
 local_index=json.loads((ROOT/'dist/search-index.json').read_text())
 if index != local_index or index['version'] != version:raise RuntimeError('Live search index mismatch')
+# New content-addressed scripts, search shards and cover variants are the files
+# browsers actually use; checking legacy root aliases alone cannot verify them.
+manifest_path = ROOT / 'dist/asset-manifest.json'
+if manifest_path.exists():
+    manifest = json.loads(manifest_path.read_text())
+    if json.loads(get('/asset-manifest.json', 'application/json')) != manifest: raise RuntimeError('Live asset manifest mismatch')
+    def check_static(rel):
+        path = ROOT / 'dist' / rel
+        if not rel.startswith('static/') or '..' in pathlib.PurePosixPath(rel).parts: raise RuntimeError('Unsafe static manifest path')
+        if hashlib.sha256(get('/'+rel)).digest() != hashlib.sha256(path.read_bytes()).digest(): raise RuntimeError('Live static asset mismatch: '+rel)
+    with ThreadPoolExecutor(max_workers=3) as pool: list(pool.map(check_static, manifest['files']))
+    print(f'HTTPS verified: {len(manifest["files"])} fingerprinted assets', flush=True)
 if '半拿铁'.encode() not in get('/topics/','text/html') or '知行小酒馆'.encode() not in get('/topics/','text/html'):raise RuntimeError('Live topic groups missing')
 from build import TOPIC_GROUPS,topic_url
 def check_topic(group):
