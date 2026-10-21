@@ -15,3 +15,8 @@ test('missing fingerprinted resources and redirects are not cached forever',asyn
  const redirected=await worker.fetch(new Request('https://xiaosang.cc/podcast-atlas/topics'),{ASSETS:{fetch:async()=>new Response(null,{status:308,headers:{location:'/topics/'}})}});
  assert.equal(redirected.headers.get('location'),'https://xiaosang.cc/podcast-atlas/topics/');
 });
+test('conditional cache validation keeps the immutable policy',async()=>{
+ const response=await worker.fetch(new Request('https://xiaosang.cc/podcast-atlas/static/0123456789abcdef/app.js'),{ASSETS:{fetch:async()=>new Response(null,{status:304,headers:{'Cache-Control':'public, max-age=0'}})}});
+ assert.equal(response.status,304);
+ assert(response.headers.get('Cache-Control').includes('immutable'));
+});

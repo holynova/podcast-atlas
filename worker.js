@@ -12,7 +12,7 @@ export default {
     let response = await env.ASSETS.fetch(new Request(url, request));
     // Only content-addressed files are immutable. Stable PDF/image URLs remain
     // revalidated so later editorial corrections cannot be hidden by old caches.
-    if (response.ok && /^\/static\/[a-f0-9]{16}(?:\/|\.)/.test(url.pathname)) {
+    if ((response.ok || response.status === 304) && /^\/static\/[a-f0-9]{16}(?:\/|\.)/.test(url.pathname)) {
       const headers = new Headers(response.headers);
       headers.set('Cache-Control', 'public, max-age=31536000, immutable');
       response = new Response(response.body, {status: response.status, headers});

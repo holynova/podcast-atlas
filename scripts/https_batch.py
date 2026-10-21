@@ -11,6 +11,8 @@ class HttpsBatch:
 
     def fetch(self, urls):
         urls = list(dict.fromkeys(urls))
+        protocol = self.env.get('RELEASE_HTTP_VERSION', 'http2')
+        if protocol not in ['http1.1', 'http2']: raise ValueError('Unsupported release HTTP version')
         config = self.root / 'requests.conf'
         blocks = []
         files = {}
@@ -21,7 +23,7 @@ class HttpsBatch:
             options = {'url':url, 'output':str(target), 'write-out':'%{json}\n',
                        'max-time':'600' if url.split('?')[0].endswith('.pdf') else '90',
                        'connect-timeout':'20', 'retry':'2', 'retry-delay':'1'}
-            blocks.append('\n'.join(k+' = '+json.dumps(v) for k,v in options.items())+'\ncompressed\nhttp2\nfail\nretry-all-errors\nsilent\nshow-error')
+            blocks.append('\n'.join(k+' = '+json.dumps(v) for k,v in options.items())+'\ncompressed\n'+protocol+'\nfail\nretry-all-errors\nsilent\nshow-error')
         config.write_text('\nnext\n'.join(blocks)+'\n')
         errors = (self.root/'errors.log').open('w+')
         process = subprocess.Popen(['curl','--parallel','--parallel-max','3','--config',str(config)],

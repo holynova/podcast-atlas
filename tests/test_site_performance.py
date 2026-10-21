@@ -27,6 +27,10 @@ class PerformanceTests(unittest.TestCase):
         self.assertNotIn('@import', styles)
         self.assertNotIn('fonts.googleapis.com', styles)
 
+    def test_analytics_loads_independently_of_application_startup(self):
+        page = b.shell('Test', '<h1>Test</h1>')
+        self.assertIn('<script async src="https://cloud.umami.is/script.js"', page)
+
     def test_generated_site_has_eager_hero_and_no_full_index_initially(self):
         page = (b.ROOT / 'dist/index.html').read_text()
         self.assertIn('loading="eager" fetchpriority="high"', page)

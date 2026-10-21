@@ -6,14 +6,15 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from https_batch import HttpsBatch
 
 class BatchTests(unittest.TestCase):
-    def run_batch(self, fail=False):
+    def run_batch(self, fail=False, protocol='http2'):
         with tempfile.TemporaryDirectory() as work:
-            batch = HttpsBatch(work,{})
+            batch = HttpsBatch(work,{'RELEASE_HTTP_VERSION':protocol})
             def fake_process(command, **kwargs):
                 config = Path(command[-1]).read_text()
                 self.assertIn('--parallel-max',command)
                 self.assertNotIn('insecure',config)
                 self.assertNotIn('--insecure',command)
+                self.assertIn('\n'+protocol+'\n',config)
                 urls = [json.loads(line.split(' = ',1)[1]) for line in config.splitlines() if line.startswith('url = ')]
                 outputs = [json.loads(line.split(' = ',1)[1]) for line in config.splitlines() if line.startswith('output = ')]
                 self.assertEqual(len(urls),2)
@@ -32,6 +33,7 @@ class BatchTests(unittest.TestCase):
 
     def test_complete_responses_are_deduplicated_and_keep_mime(self):self.run_batch()
     def test_any_failed_transfer_prevents_verification(self):self.run_batch(fail=True)
+    def test_http1_fallback_changes_protocol_without_skipping_checks(self):self.run_batch(protocol='http1.1')
     def test_plain_http_is_rejected(self):
         with tempfile.TemporaryDirectory() as work:
             batch=HttpsBatch(work,{})

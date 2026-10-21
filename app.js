@@ -83,6 +83,7 @@ function setActive(index) {
 }
 function render() {
   if (!entries) return;
+  const selectedHref = active >= 0 ? results.querySelector('[aria-selected="true"]')?.href : null;
   matches = searchEntries(entries, query.value, scope);
   results.replaceChildren();
   const list = matches.slice(0, visibleLimit);
@@ -114,7 +115,7 @@ function render() {
     status.textContent += bodyLoading ? ' 正在补充正文匹配…' : (bodyFailed.size ? ' 部分正文暂未加载，可以重试。' : ' 即将补充正文匹配…');
   }
   retry.hidden = !bodyFailed.size;
-  setActive(-1);
+  setActive(selectedHref ? [...results.querySelectorAll('[role="option"]')].findIndex(option => option.href === selectedHref) : -1);
 }
 async function loadIndex() {
   if (!indexPromise) {
@@ -158,7 +159,7 @@ dialog?.addEventListener('click',event => {
   const box = dialog.getBoundingClientRect();
   if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
 });
-query?.addEventListener('input',event => {visibleLimit = 20; render(); if(!event.isComposing) scheduleBodies();});
+query?.addEventListener('input',event => {visibleLimit = 20; active = -1; render(); if(!event.isComposing) scheduleBodies();});
 query?.addEventListener('compositionend',scheduleBodies);
 query?.addEventListener('keydown',event => {
   if (event.isComposing) return;
@@ -169,7 +170,7 @@ query?.addEventListener('keydown',event => {
   }
 });
 dialog?.querySelectorAll('[data-search-show]').forEach(button => button.addEventListener('click',() => {
-  scope = button.dataset.searchShow; visibleLimit = 20;
+  scope = button.dataset.searchShow; visibleLimit = 20; active = -1;
   dialog.querySelectorAll('[data-search-show]').forEach(item => item.setAttribute('aria-pressed',String(item === button)));
   render(); scheduleBodies(); query.focus();
 }));
