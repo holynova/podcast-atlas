@@ -179,7 +179,7 @@ def submit(profile,items,cycle,checked,caches,deadline):
         if not all(p.remaining_attempts(r,k) for k in ['source','slides','download']):continue
         stage='source'
         try:
-            p.generation_gate(job);prepare_cycle_source(job,ep,cycle);stage='slides'
+            p.generation_gate(job,ep=ep);prepare_cycle_source(job,ep,cycle);stage='slides'
             nb=r['notebook_id']
             if (profile,nb) in checked:
                 artifacts=caches.get((profile,nb),([],time.monotonic()))[0]
@@ -194,14 +194,18 @@ def submit(profile,items,cycle,checked,caches,deadline):
                     r['publication_status']='pending'
                     if eid not in cycle['recovered_ids']:cycle['recovered_ids'].append(eid)
                 sync(job,profile);save_cycle(cycle);continue
-            cycle['attempted_slide_ids'].append(eid);checkpoint(cycle,job)
+            if eid not in cycle['attempted_slide_ids']:
+                cycle['attempted_slide_ids'].append(eid)
+            checkpoint(cycle,job)
             p.start_slides(job,ep,artifacts)
             if r.get('slide_status') in ['queued','submitting']:
-                cycle['submitted_slide_ids'].append(eid);print('SUBMITTED',profile,eid,flush=True)
+                if eid not in cycle['submitted_slide_ids']:
+                    cycle['submitted_slide_ids'].append(eid)
+                print('SUBMITTED',profile,eid,flush=True)
             sync(job,profile);save_cycle(cycle)
             in_flight=sum(1 for rec in job['episodes'].values() if rec.get('slide_status') in ['queued','submitting'])
-            more_candidates=[c for c in candidates if c['id'] not in cycle['attempted_slide_ids']]
-            if more_candidates and in_flight<p.CONFIG.get('max_concurrent_slides_per_account',10) and len(cycle['attempted_slide_ids'])<cycle['slide_limit']:
+            more_candidates=[c for c in candidates if can_submit(cycle,c['id'])]
+            if more_candidates and in_flight<p.CONFIG.get('max_concurrent_slides_per_account',10):
                 p.paced_sleep(p.CONFIG.get('generation_interval_seconds',60))
             else:
                 return

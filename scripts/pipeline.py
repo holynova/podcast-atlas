@@ -80,7 +80,7 @@ def pause_generation(state, reason, until=None):
     state['generation_pause_reason'] = reason
     write_json(STATE_FILE, state)
 
-def generation_gate(state):
+def generation_gate(state, ep=None):
     watch = state.get('manual_retry_watch', {})
     if watch.get('check_not_before') and not watch.get('checked_at'):
         raise GenerationDeferred('User manually retried this notebook; reconcile its results before submitting another.')
@@ -89,6 +89,11 @@ def generation_gate(state):
     until = state.get('generation_cooldown_until')
     if until and dt.datetime.fromisoformat(until) > dt.datetime.now(TZ):
         raise GenerationDeferred('Generation paused until ' + until)
+    if ep:
+        r = state.get('episodes', {}).get(ep['id'], {})
+        next_attempt = r.get('next_slide_attempt_at')
+        if next_attempt and dt.datetime.fromisoformat(next_attempt) > dt.datetime.now(TZ):
+            raise GenerationDeferred(f"Episode {ep['id']} is in retry backoff until {next_attempt}")
     active_in_flight = sum(1 for r in state.get('episodes', {}).values() if r.get('slide_status') in ['queued','submitting'])
     max_in_flight = CONFIG.get('max_concurrent_slides_per_account', 10)
     if active_in_flight >= max_in_flight:
@@ -227,40 +232,44 @@ def prepare_source(state, ep):
 
 def start_slides(state, ep, artifacts=None):
     r = state['episodes'][ep['id']]
-    if r.get('slide_status') == 'failed':
-        r.setdefault('failed_artifact_ids', []).append(r['artifact_id'])
-        r.pop('artifact_id', None); r['slide_status'] = 'retry_pending'
+    if r.get('slide_status') in ['failed', 'retry_pending']:
+        if r.get('artifact_id'):
+            r.setdefault('failed_artifact_ids', []).append(r['artifact_id'])
+            r['failed_artifact_ids'] = sorted(set(r['failed_artifact_ids']))
+            r.pop('artifact_id', None)
+        r['slide_status'] = 'retry_pending'
         write_json(STATE_FILE, state)
     if r.get('artifact_id'): return
     # Recover an ambiguous create before any retry: each focus contains a unique episode marker.
     if artifacts is None: artifacts = get_artifacts(r['notebook_id'])
-    related = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False) and a.get('id',a.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
+    related = [a for a in artifacts if (ep['id'] in json.dumps(a, ensure_ascii=False) or r.get('source_id') in a.get('source_ids', [])) and a.get('id',a.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
     failed_ids = set(r.get('failed_artifact_ids', []))
     failed_ids.update(a.get('id', a.get('artifact_id')) for a in related if str(a.get('status', '')).lower() in ['failed', 'error', '4'])
-    failed_ids.difference_update(a.get('id',a.get('artifact_id')) for a in related if a.get('status') == 'completed')
+    failed_ids.difference_update(a.get('id',a.get('artifact_id')) for a in related if str(a.get('status', '')).lower() in ['completed', '3'])
     r['failed_artifact_ids'] = sorted(failed_ids - {None})
     matches = [a for a in related if a.get('id', a.get('artifact_id')) not in failed_ids]
     if matches:
-        candidates = sorted(matches, key=lambda a: 0 if a.get('status') == 'completed' else 1 if a.get('status') != 'failed' else 2)
+        candidates = sorted(matches, key=lambda a: 0 if str(a.get('status', '')).lower() in ['completed', '3'] else 1 if str(a.get('status', '')).lower() not in ['failed', 'error', '4'] else 2)
         a = candidates[0]; r['artifact_id'] = a.get('artifact_id', a.get('id'))
         r['all_artifact_ids'] = [x.get('artifact_id', x.get('id')) for x in matches]
     elif r.get('slide_status') == 'submitting':
         raise RuntimeError('Slide submission outcome uncertain. Inspect NotebookLM before re-submitting to avoid duplicates.')
     else:
-        generation_gate(state)
+        generation_gate(state, ep=ep)
         state['last_slide_submission_at'] = now()
         r['slide_submitted_at'] = state['last_slide_submission_at']
         r['slide_status'] = 'submitting'; write_json(STATE_FILE, state)
         try:
             a = cli('slides', 'create', r['notebook_id'], '--source-ids', r['source_id'], '--format', 'detailed_deck', '--language', 'zh-CN', '--focus', f"标识 {ep['id']}。{SLIDE_FOCUS}", '--confirm', '--json')
         except RuntimeError as error:
-            if 'Rate limited' in str(error) or 'RESOURCE_EXHAUSTED' in str(error):
+            if 'Rate limited' in str(error) or 'RESOURCE_EXHAUSTED' in str(error) or '429' in str(error):
                 r['slide_status'] = 'rate_limited'
                 pause_generation(state, 'NotebookLM explicitly rate limited slide creation')
                 r['next_slide_attempt_at'] = state['generation_cooldown_until']
                 write_json(STATE_FILE, state)
             raise
         r['artifact_id'] = a['artifact_id']
+        r.setdefault('all_artifact_ids', []).append(a['artifact_id'])
     r['slide_status'] = 'queued'; r['updated_at'] = now(); write_json(STATE_FILE, state)
 
 def make_article(state, ep):
@@ -277,12 +286,12 @@ def collect_slides(state, ep, artifacts=None):
     r = state['episodes'][ep['id']]
     if generation_waiting(r): return False
     if artifacts is not None:
-        matches = [a for a in artifacts if ep['id'] in json.dumps(a, ensure_ascii=False) and a.get('id',a.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
+        matches = [a for a in artifacts if (ep['id'] in json.dumps(a, ensure_ascii=False) or r.get('source_id') in a.get('source_ids', [])) and a.get('id',a.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
         if matches:
             r['all_artifact_ids'] = [a.get('artifact_id', a.get('id')) for a in matches]
-            completed = next((a for a in matches if a.get('status') == 'completed'), None)
+            completed = next((a for a in matches if str(a.get('status', '')).lower() in ['completed', '3']), None)
             if completed or not r.get('artifact_id'):
-                a = completed or next((a for a in matches if a.get('status') != 'failed'), matches[0])
+                a = completed or next((a for a in matches if str(a.get('status', '')).lower() not in ['failed', 'error', '4']), matches[0])
                 r['artifact_id'] = a.get('artifact_id', a.get('id'))
     if not r.get('artifact_id'): return False
     target = ROOT / 'assets/slides' / (ep['id'] + '.pdf')
@@ -302,14 +311,18 @@ def collect_slides(state, ep, artifacts=None):
             r.pop('artifact_id', None); r['slide_status'] = 'retry_pending'
             write_json(STATE_FILE, state)
             return False
-        alternatives = [x for x in artifacts if ep['id'] in json.dumps(x, ensure_ascii=False) and x.get('status') != 'failed' and x.get('id',x.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
+        alternatives = [x for x in artifacts if (ep['id'] in json.dumps(x, ensure_ascii=False) or r.get('source_id') in x.get('source_ids', [])) and str(x.get('status', '')).lower() not in ['failed', 'error', '4'] and x.get('id',x.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
         if alternatives:
-            best = next((x for x in alternatives if x.get('status') == 'completed'), alternatives[0])
+            best = next((x for x in alternatives if str(x.get('status', '')).lower() in ['completed', '3']), alternatives[0])
             r['artifact_id'] = best.get('artifact_id', best.get('id')); write_json(STATE_FILE, state); return False
         r['slide_status'] = 'failed'
+        r.setdefault('failed_artifact_ids', []).append(r['artifact_id'])
+        r['failed_artifact_ids'] = sorted(set(r['failed_artifact_ids']))
         submitted = dt.datetime.fromisoformat(r.get('slide_submitted_at') or now())
-        until = (submitted + dt.timedelta(seconds=CONFIG.get('unknown_failure_interval_seconds',1800))).isoformat(timespec='seconds')
-        pause_generation(state, 'Remote generation failed without a reason; not confirmed quota exhaustion',until)
+        retry_delay = CONFIG.get('unknown_failure_interval_seconds', 1260)
+        until = (submitted + dt.timedelta(seconds=retry_delay)).isoformat(timespec='seconds')
+        pause_generation(state, 'Remote generation failed without a reason; not confirmed quota exhaustion', until)
+        r['next_slide_attempt_at'] = until
         write_json(STATE_FILE, state)
         raise GenerationFailed('NotebookLM slide generation failed; cause not provided; generation paused')
     if status not in ['completed', 'complete', 'ready', '3']: write_json(STATE_FILE, state); return False
