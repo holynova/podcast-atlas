@@ -6,12 +6,12 @@ import pipeline as p
 import cycle as c
 
 class CycleTests(unittest.TestCase):
-    def test_active_local_text_batch_defers_remote_work_without_new_cycle(self):
+    def test_active_local_text_batch_does_not_block_slides(self):
         from types import SimpleNamespace
-        with tempfile.TemporaryDirectory() as temp,patch.object(p,'ROOT',Path(temp)),patch.object(p,'catalog',return_value=[]),patch.object(c,'read',return_value={'text_batches':{'local':{'status':'running'}}}),patch.object(c,'plan') as plan,patch.object(c,'collect') as collect,patch.object(c,'submit') as submit:
+        with tempfile.TemporaryDirectory() as temp,patch.object(p,'ROOT',Path(temp)),patch.object(p,'catalog',return_value=[]),patch.object(c,'read',return_value={'text_batches':{'local':{'status':'running'}}}),patch.object(c,'plan',return_value={'started_at':dt.datetime.now(p.TZ).isoformat(),'slide_ids':[],'article_ids':[],'attempted_slide_ids':[],'submitted_slide_ids':[]}) as plan:
             (Path(temp)/'state').mkdir()
-            c.run(SimpleNamespace(slide_limit=5,article_limit=5,wait_minutes=150,plan_only=False,text_only=False))
-        plan.assert_not_called();collect.assert_not_called();submit.assert_not_called()
+            c.run(SimpleNamespace(slide_limit=5,article_limit=5,wait_minutes=150,plan_only=True,text_only=False))
+        plan.assert_called_once()
 
     def test_cycle_boundary_is_five_hours_and_does_not_reset_at_midnight(self):
         anchor=dt.datetime.fromisoformat('2026-10-12T23:00:00+08:00')
