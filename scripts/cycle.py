@@ -181,29 +181,32 @@ def submit(profile,items,cycle,checked,caches,deadline):
         try:
             p.generation_gate(job);prepare_cycle_source(job,ep,cycle);stage='slides'
             nb=r['notebook_id']
-            if not p.notebook_check_due(job,nb):return
-            # Reconcile once immediately before any mutation, including ambiguous deliveries.
             if (profile,nb) in checked:
-                cached=caches.get((profile,nb))
-                if not cached or time.monotonic()-cached[1]>=p.CONFIG['poll_interval_seconds']:return
-                artifacts=cached[0]
-            else:
+                artifacts=caches.get((profile,nb),([],time.monotonic()))[0]
+            elif p.notebook_check_due(job,nb):
                 checked.add((profile,nb));artifacts=p.get_artifacts(nb)
                 caches[(profile,nb)]=(artifacts,time.monotonic())
+            else:
+                artifacts=caches.get((profile,nb),([],time.monotonic()))[0]
             if any(a.get('status') in ['completed','in_progress','queued'] and eid in json.dumps(a,ensure_ascii=False) and a.get('id') not in job.get('diagnostic_artifact_ids',[]) for a in artifacts):
                 if p.collect_slides(job,ep,artifacts):
                     if (p.ROOT/'content'/(eid+'.json')).exists():r.update(status='complete',article_status='ready')
                     r['publication_status']='pending'
                     if eid not in cycle['recovered_ids']:cycle['recovered_ids'].append(eid)
-                sync(job,profile);save_cycle(cycle);return
+                sync(job,profile);save_cycle(cycle);continue
             cycle['attempted_slide_ids'].append(eid);checkpoint(cycle,job)
             p.start_slides(job,ep,artifacts)
             if r.get('slide_status') in ['queued','submitting']:
                 cycle['submitted_slide_ids'].append(eid);print('SUBMITTED',profile,eid,flush=True)
-        except p.GenerationDeferred as error:print('DEFERRED',profile,str(error),flush=True)
-        except Exception as error:p.mark_error(job,eid,stage,error)
-        sync(job,profile);save_cycle(cycle)
-        return
+            sync(job,profile);save_cycle(cycle)
+            in_flight=sum(1 for rec in job['episodes'].values() if rec.get('slide_status') in ['queued','submitting'])
+            more_candidates=[c for c in candidates if c['id'] not in cycle['attempted_slide_ids']]
+            if more_candidates and in_flight<p.CONFIG.get('max_concurrent_slides_per_account',10) and len(cycle['attempted_slide_ids'])<cycle['slide_limit']:
+                p.paced_sleep(p.CONFIG.get('generation_interval_seconds',60))
+            else:
+                return
+        except p.GenerationDeferred as error:print('DEFERRED',profile,str(error),flush=True);sync(job,profile);save_cycle(cycle);return
+        except Exception as error:p.mark_error(job,eid,stage,error);sync(job,profile);save_cycle(cycle);return
 
 def can_continue(cycle,main,second,deadline):
     for profile,job in [('default',main),('account-b',second)]:

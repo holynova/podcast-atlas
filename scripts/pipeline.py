@@ -89,11 +89,14 @@ def generation_gate(state):
     until = state.get('generation_cooldown_until')
     if until and dt.datetime.fromisoformat(until) > dt.datetime.now(TZ):
         raise GenerationDeferred('Generation paused until ' + until)
-    if any(r.get('slide_status') in ['queued','submitting'] for r in state['episodes'].values()):
-        raise GenerationDeferred('An existing generation is still pending; collect it before submitting another.')
+    active_in_flight = sum(1 for r in state.get('episodes', {}).values() if r.get('slide_status') in ['queued','submitting'])
+    max_in_flight = CONFIG.get('max_concurrent_slides_per_account', 10)
+    if active_in_flight >= max_in_flight:
+        raise GenerationDeferred(f'Reached maximum concurrent in-flight generations ({max_in_flight}); collect some before submitting more.')
     last = state.get('last_slide_submission_at')
-    if last and (dt.datetime.now(TZ)-dt.datetime.fromisoformat(last)).total_seconds() < CONFIG.get('generation_interval_seconds',600):
-        raise GenerationDeferred('Waiting for the 10-minute submission interval.')
+    interval = CONFIG.get('generation_interval_seconds', 60)
+    if last and (dt.datetime.now(TZ)-dt.datetime.fromisoformat(last)).total_seconds() < interval:
+        raise GenerationDeferred(f'Waiting for the {interval}-second submission interval.')
 
 def generation_waiting(r):
     """Allow a newly submitted deck its initial generation window before polling."""

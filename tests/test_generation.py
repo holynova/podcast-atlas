@@ -18,8 +18,10 @@ class GenerationTests(unittest.TestCase):
             self.assertEqual(p.network_env()['NLM_PROFILE'],p.CONFIG['notebooklm_profile'])
 
     def test_pending_job_prevents_new_generation(self):
+        # Concurrency allows up to 10 in-flight tasks; 10 or more blocks
+        p.generation_gate({'episodes':{f'ep_{i}':{'slide_status':'queued'} for i in range(9)}})
         with self.assertRaises(p.GenerationDeferred):
-            p.generation_gate({'episodes':{'other':{'slide_status':'queued'}}})
+            p.generation_gate({'episodes':{f'ep_{i}':{'slide_status':'queued'} for i in range(10)}})
 
     def test_diagnostic_task_blocks_other_submission(self):
         with self.assertRaises(p.GenerationDeferred):
