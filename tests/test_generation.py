@@ -85,8 +85,8 @@ class GenerationTests(unittest.TestCase):
         with patch.object(p,'write_json'):
             with self.assertRaises(p.GenerationFailed):
                 p.collect_slides(s,{'id':'e'},[{'id':'broken','status':'failed','title':'e'}])
-        remaining=(dt.datetime.fromisoformat(s['generation_cooldown_until'])-dt.datetime.now(p.TZ)).total_seconds()
-        expected=p.CONFIG['unknown_failure_interval_seconds']-1200
+        remaining=(dt.datetime.fromisoformat(s['episodes']['e']['next_slide_attempt_at'])-dt.datetime.now(p.TZ)).total_seconds()
+        expected=p.CONFIG.get('single_episode_retry_interval_seconds',60)
         self.assertGreater(remaining,expected-2);self.assertLess(remaining,expected+2)
 
     def test_new_deck_is_not_polled_or_failed_before_twenty_minutes(self):
@@ -150,7 +150,8 @@ class GenerationTests(unittest.TestCase):
                 p.collect_slides(state,{'id':'quota-test'},artifacts)
             p.mark_error(state,'quota-test','slides',error.exception)
         self.assertEqual(state['episodes']['quota-test']['attempts'],{'slides':1})
-        self.assertIn('generation_cooldown_until',state)
+        self.assertIn('next_slide_attempt_at',state['episodes']['quota-test'])
+        self.assertNotIn('generation_cooldown_until',state)
 
     def test_archived_failure_does_not_restart_cooldown(self):
         r={'notebook_id':'nb','slide_status':'retry_pending','failed_artifact_ids':['old']}

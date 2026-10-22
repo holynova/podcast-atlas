@@ -73,7 +73,7 @@ def run(profile,wait_minutes,collect_only=False):
                 if not all(p.remaining_attempts(r,k) for k in ['source','article','slides','download']):continue
                 stage='source'
                 try:
-                    p.generation_gate(job)
+                    p.generation_gate(job,ep=ep)
                     p.prepare_source(job,ep)
                     stage='article';p.make_article(job,ep)
                     stage='slides'

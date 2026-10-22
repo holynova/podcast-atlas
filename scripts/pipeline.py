@@ -318,13 +318,11 @@ def collect_slides(state, ep, artifacts=None):
         r['slide_status'] = 'failed'
         r.setdefault('failed_artifact_ids', []).append(r['artifact_id'])
         r['failed_artifact_ids'] = sorted(set(r['failed_artifact_ids']))
-        submitted = dt.datetime.fromisoformat(r.get('slide_submitted_at') or now())
-        retry_delay = CONFIG.get('unknown_failure_interval_seconds', 1260)
-        until = (submitted + dt.timedelta(seconds=retry_delay)).isoformat(timespec='seconds')
-        pause_generation(state, 'Remote generation failed without a reason; not confirmed quota exhaustion', until)
+        retry_delay = CONFIG.get('single_episode_retry_interval_seconds', 60)
+        until = (dt.datetime.now(TZ) + dt.timedelta(seconds=retry_delay)).isoformat(timespec='seconds')
         r['next_slide_attempt_at'] = until
         write_json(STATE_FILE, state)
-        raise GenerationFailed('NotebookLM slide generation failed; cause not provided; generation paused')
+        raise GenerationFailed('NotebookLM slide generation failed; cause not provided')
     if status not in ['completed', 'complete', 'ready', '3']: write_json(STATE_FILE, state); return False
     target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix('.part.pdf')
