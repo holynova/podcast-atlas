@@ -118,9 +118,10 @@ def notebook_check_due(state, nb):
     if diagnostic and diagnostic.get('notebook_id') == nb:
         elapsed = (dt.datetime.now(TZ)-dt.datetime.fromisoformat(diagnostic['submitted_at'])).total_seconds()
         if elapsed < CONFIG.get('generation_initial_wait_seconds',1200): return False
-    unfinished = [r for r in state['episodes'].values()
-                  if r.get('notebook_id') == nb and r.get('status') != 'complete']
-    return not any(generation_waiting(r) for r in unfinished)
+    active = [r for r in state['episodes'].values()
+              if r.get('notebook_id') == nb and r.get('status') != 'complete' and r.get('slide_status') in ['queued', 'submitting']]
+    if not active: return True
+    return any(not generation_waiting(r) for r in active)
 
 def cooldown_outlasts_budget(state, deadline):
     until = state.get('generation_cooldown_until')
