@@ -264,7 +264,12 @@ def start_slides(state, ep, artifacts=None):
         except RuntimeError as error:
             if 'Rate limited' in str(error) or 'RESOURCE_EXHAUSTED' in str(error) or '429' in str(error):
                 r['slide_status'] = 'rate_limited'
-                pause_generation(state, 'NotebookLM explicitly rate limited slide creation')
+                if 'Wait 1-2 minutes' in str(error) or 'Wait a few minutes' in str(error):
+                    cooldown = CONFIG.get('rate_limit_throttle_seconds', 180)
+                    until = (dt.datetime.now(TZ) + dt.timedelta(seconds=cooldown)).isoformat(timespec='seconds')
+                    pause_generation(state, 'NotebookLM frequency limit (wait a few minutes)', until)
+                else:
+                    pause_generation(state, 'NotebookLM explicitly rate limited slide creation')
                 r['next_slide_attempt_at'] = state['generation_cooldown_until']
                 write_json(STATE_FILE, state)
             raise
