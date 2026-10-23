@@ -89,7 +89,7 @@ with ThreadPoolExecutor(max_workers=3) as pool:
         reused_assets.extend(reused)
         if len(verified) % 10 == 0: print(f'HTTPS verified: {len(verified)} articles', flush=True)
 with (ROOT / 'state/runner.lock').open('w') as lock:
-    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    fcntl.flock(lock, fcntl.LOCK_EX)
     state = json.loads((ROOT / 'state/progress.json').read_text())
     state['deployments'].append({'at':now(),'source_sha':sha,'version':version,'worker':'podcast-atlas','domain':domain,'deployment_id':args.deployment_id,'verified_episode_ids':verified,'status':'verified','reused_verified_assets':reused_assets,'asset_verification_base_sha':previous.get('source_sha') if previous else None})
     for eid in verified: state['episodes'][eid].update(publication_status='verified', published_sha=sha, published_at=now())
