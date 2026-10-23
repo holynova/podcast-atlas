@@ -203,3 +203,276 @@ async function loadBodies() {
   await Promise.all([worker(),worker(),worker()]);bodyLoading=false;
   if(dialog.open){render();scheduleBodies();}
 }
+
+// -------------------------------------------------------------
+// 1. Image Lightbox (图片点击放大、全屏查看)
+// -------------------------------------------------------------
+const lightbox = document.querySelector('#image-lightbox');
+const lightboxImg = lightbox?.querySelector('#lightbox-img');
+const lightboxCaption = lightbox?.querySelector('#lightbox-caption');
+const lightboxClose = lightbox?.querySelector('[data-close-lightbox]');
+
+function openLightbox(img) {
+  if (!lightbox || !lightboxImg || !img) return;
+  const src = img.currentSrc || img.src;
+  if (!src) return;
+  lightboxImg.src = src;
+  lightboxImg.alt = img.alt || '';
+  if (lightboxCaption) {
+    const text = img.alt || '';
+    lightboxCaption.textContent = text;
+    lightboxCaption.hidden = !text;
+  }
+  lightbox.showModal();
+}
+
+function closeLightbox() {
+  if (lightbox?.open) lightbox.close();
+  lightboxImg?.classList.remove('zoomed');
+}
+
+lightboxImg?.addEventListener('click', () => {
+  lightboxImg.classList.toggle('zoomed');
+});
+
+lightboxClose?.addEventListener('click', closeLightbox);
+lightbox?.addEventListener('click', event => {
+  if (event.target === lightbox || event.target.classList.contains('lightbox-shell') || event.target.classList.contains('lightbox-stage')) {
+    closeLightbox();
+  }
+});
+lightbox?.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !event.isComposing) {
+    event.preventDefault();
+    closeLightbox();
+  }
+});
+
+// Click on zoomable images in article content, figures, and covers
+document.addEventListener('click', event => {
+  const img = event.target.closest('.chapter figure img, .chapter img, figure img');
+  if (img && !img.closest('#slide-viewer') && !img.closest('#image-lightbox')) {
+    event.preventDefault();
+    openLightbox(img);
+  }
+});
+
+// -------------------------------------------------------------
+// 2. In-Page Slide Viewer (PDF 在页面中打开、一页页查看)
+// -------------------------------------------------------------
+const slideViewer = document.querySelector('#slide-viewer');
+const slideTitle = slideViewer?.querySelector('#slide-title');
+const slidePageNum = slideViewer?.querySelector('#slide-page-num');
+const slidePageCount = slideViewer?.querySelector('#slide-page-count');
+const slideDownloadBtn = slideViewer?.querySelector('#slide-download-btn');
+const slideFsBtn = slideViewer?.querySelector('#slide-fs-btn');
+const slideCloseBtn = slideViewer?.querySelector('[data-close-slides]');
+const slideCanvas = slideViewer?.querySelector('#slide-canvas');
+const slideLoading = slideViewer?.querySelector('#slide-loading');
+const slidePrevBtn = slideViewer?.querySelector('#slide-prev');
+const slideNextBtn = slideViewer?.querySelector('#slide-next');
+const slideNavPrev = slideViewer?.querySelector('#slide-nav-prev');
+const slideNavNext = slideViewer?.querySelector('#slide-nav-next');
+const slideScrubber = slideViewer?.querySelector('#slide-scrubber');
+const slideCanvasBox = slideViewer?.querySelector('#slide-canvas-box');
+
+let currentPdfDoc = null;
+let currentPdfPage = 1;
+let totalPdfPages = 0;
+let isRendering = false;
+let pendingPage = null;
+let currentRenderTask = null;
+
+async function getPdfjs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  const baseEl = document.querySelector('#command-search');
+  const base = (new URL(baseEl?.dataset.searchIndex || location.href, location.href).pathname.split('/static/')[0] || '').replace(/\/+$/, '');
+  const lib = await import(base + '/vendor/pdf.min.mjs');
+  lib.GlobalWorkerOptions.workerSrc = base + '/vendor/pdf.worker.min.mjs';
+  window.pdfjsLib = lib;
+  return lib;
+}
+
+async function openSlideViewer(pdfUrl, title) {
+  if (!slideViewer) return;
+  slideViewer.showModal();
+  if (slideTitle) slideTitle.textContent = title || '漫画幻灯片';
+  if (slideDownloadBtn) slideDownloadBtn.href = pdfUrl;
+  if (slideLoading) {
+    slideLoading.hidden = false;
+    slideLoading.replaceChildren(element('span', '正在载入幻灯片…'));
+  }
+  if (slidePageNum) slidePageNum.textContent = '1';
+  if (slidePageCount) slidePageCount.textContent = '-';
+  if (slideScrubber) { slideScrubber.min = '1'; slideScrubber.max = '1'; slideScrubber.value = '1'; }
+
+  try {
+    const pdfjs = await getPdfjs();
+    const loadingTask = pdfjs.getDocument(pdfUrl);
+    currentPdfDoc = await loadingTask.promise;
+    totalPdfPages = currentPdfDoc.numPages;
+    if (slidePageCount) slidePageCount.textContent = String(totalPdfPages);
+    if (slideScrubber) slideScrubber.max = String(totalPdfPages);
+    currentPdfPage = 1;
+    renderSlidePage(currentPdfPage);
+  } catch (err) {
+    console.error('Slide viewer load error:', err);
+    if (slideLoading) {
+      slideLoading.replaceChildren(element('span', '幻灯片在线解析失败，请点击右上角直接下载或在新窗口打开。'));
+    }
+  }
+}
+
+async function renderSlidePage(num) {
+  if (!currentPdfDoc || !slideCanvas) return;
+  if (isRendering) {
+    pendingPage = num;
+    if (currentRenderTask) {
+      try { currentRenderTask.cancel(); } catch {}
+    }
+    return;
+  }
+  isRendering = true;
+  if (slideLoading) slideLoading.hidden = false;
+
+  try {
+    const page = await currentPdfDoc.getPage(num);
+    const box = slideCanvasBox || slideCanvas.parentElement;
+    const boxRect = box.getBoundingClientRect();
+    const unscaledViewport = page.getViewport({ scale: 1 });
+
+    const availWidth = Math.max(280, boxRect.width - 24);
+    const availHeight = Math.max(180, boxRect.height - 24);
+    const scale = Math.min(availWidth / unscaledViewport.width, availHeight / unscaledViewport.height);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const viewport = page.getViewport({ scale });
+
+    slideCanvas.width = Math.floor(viewport.width * dpr);
+    slideCanvas.height = Math.floor(viewport.height * dpr);
+    slideCanvas.style.width = Math.floor(viewport.width) + 'px';
+    slideCanvas.style.height = Math.floor(viewport.height) + 'px';
+
+    const ctx = slideCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    currentRenderTask = page.render({ canvasContext: ctx, viewport });
+    await currentRenderTask.promise;
+    currentRenderTask = null;
+
+    currentPdfPage = num;
+    if (slidePageNum) slidePageNum.textContent = String(num);
+    if (slideScrubber) slideScrubber.value = String(num);
+    if (slidePrevBtn) slidePrevBtn.disabled = num <= 1;
+    if (slideNextBtn) slideNextBtn.disabled = num >= totalPdfPages;
+    if (slideNavPrev) slideNavPrev.disabled = num <= 1;
+    if (slideNavNext) slideNavNext.disabled = num >= totalPdfPages;
+  } catch (err) {
+    if (err?.name !== 'RenderingCancelledException') {
+      console.error('Render error:', err);
+    }
+  } finally {
+    isRendering = false;
+    if (slideLoading) slideLoading.hidden = true;
+    if (pendingPage !== null) {
+      const p = pendingPage;
+      pendingPage = null;
+      renderSlidePage(p);
+    }
+  }
+}
+
+function prevSlide() {
+  if (currentPdfPage > 1) renderSlidePage(currentPdfPage - 1);
+}
+function nextSlide() {
+  if (currentPdfPage < totalPdfPages) renderSlidePage(currentPdfPage + 1);
+}
+function closeSlideViewer() {
+  if (currentRenderTask) {
+    try { currentRenderTask.cancel(); } catch {}
+    currentRenderTask = null;
+  }
+  currentPdfDoc = null;
+  if (slideViewer?.open) slideViewer.close();
+}
+
+slidePrevBtn?.addEventListener('click', prevSlide);
+slideNextBtn?.addEventListener('click', nextSlide);
+slideNavPrev?.addEventListener('click', prevSlide);
+slideNavNext?.addEventListener('click', nextSlide);
+slideScrubber?.addEventListener('input', () => {
+  renderSlidePage(Number(slideScrubber.value));
+});
+slideCloseBtn?.addEventListener('click', closeSlideViewer);
+
+slideViewer?.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeSlideViewer();
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'PageUp') {
+    event.preventDefault();
+    prevSlide();
+  } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
+    event.preventDefault();
+    nextSlide();
+  } else if (event.key === 'Home') {
+    event.preventDefault();
+    renderSlidePage(1);
+  } else if (event.key === 'End') {
+    event.preventDefault();
+    renderSlidePage(totalPdfPages);
+  }
+});
+
+// Fullscreen toggle button
+slideFsBtn?.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    slideViewer?.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+});
+
+// Click left / right sides of canvas to navigate
+slideCanvasBox?.addEventListener('click', event => {
+  if (event.target === slideCanvas) {
+    const rect = slideCanvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    if (x < rect.width * 0.4) prevSlide();
+    else if (x > rect.width * 0.6) nextSlide();
+  }
+});
+
+// Mobile touch swipe gesture
+let touchStartX = 0;
+let touchStartY = 0;
+slideCanvasBox?.addEventListener('touchstart', event => {
+  touchStartX = event.changedTouches[0].clientX;
+  touchStartY = event.changedTouches[0].clientY;
+}, {passive: true});
+slideCanvasBox?.addEventListener('touchend', event => {
+  const diffX = event.changedTouches[0].clientX - touchStartX;
+  const diffY = event.changedTouches[0].clientY - touchStartY;
+  if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY)) {
+    if (diffX > 0) prevSlide();
+    else nextSlide();
+  }
+}, {passive: true});
+
+// Resize re-render
+let resizeTimer;
+window.addEventListener('resize', () => {
+  if (slideViewer?.open && currentPdfDoc) {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => renderSlidePage(currentPdfPage), 150);
+  }
+});
+
+// Global trigger for [data-open-slides]
+document.addEventListener('click', event => {
+  const btn = event.target.closest('[data-open-slides]');
+  if (btn) {
+    event.preventDefault();
+    openSlideViewer(btn.dataset.openSlides, btn.dataset.title);
+  }
+});
