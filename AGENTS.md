@@ -12,6 +12,7 @@
 - 每周期每集最多一次提交机会，提交前持久化记录；结果不明先查远端。手动重试遵守manual_retry_watch，check_not_before前不查询，核实结果前不重复提交。diagnostic_artifact_ids禁止当正式成品使用。
 - 协调器同时管理两账号的远端任务，本地写进度共用runner.lock；等待时释放锁，不绕过锁并发覆盖主进度。生成与部署不得同时进行。
 - 文字用短句和常用词；校对同音人名、日期、金额、引用及PDF选图。文字已整理但幻灯片未齐时明确显示等待状态，不用装饰占位图冒充插图。
+- 界面设计与排版：Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining. 坚决去除多余的装饰性次级英文小标签（如全大写 eyebrow）、重复解释文案和不必要的辅助提示；依靠留白、字体层级、结构网格和布局本身清晰表达层级关系与交互意图。保持舒适的阅读字体大小，正文与内容字号适度放大。
 - 网站专题按“播客 + 专题”隔离，统计与下一集导航不得串播客。搜索只索引公开目录与加工后的讲解。
 - 使用hn-project-publisher发布，用户已授权更新。仅暂存明确文件、提交推送main成功，再从同一提交用锁定Wrangler手动部署；不创建发布分支、GitHub Actions或Workers Git自动部署。
 - 网站为https://xiaosang.cc/podcast-atlas/，保留podcast-atlas Worker、主域名路径路由、base_path、worker.js与wrangler.jsonc；不改其他项目路由。作品集master的有效条目与GitHub Profile复用。
