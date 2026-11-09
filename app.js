@@ -26,11 +26,14 @@ function libraryCard(entry) {
     const placeholder = element('div', undefined, 'cover-pending');
     placeholder.append(element('span','先读文字讲解'),element('small','漫画幻灯片稍后补充')); cover.append(placeholder);
   }
-  const copy = element('div',undefined,'card-copy');
-  const title = element('h3'); const link = element('a',entry.title); link.href=entry.url;title.append(link);
-  const bottom = element('div',undefined,'card-bottom');const read=element('a','阅读图解 ↗');read.href=entry.url;bottom.append(element('span',entry.date),read);
-  copy.append(element('div',`${entry.show} / ${entry.topic}`,'eyebrow'),title,element('p',entry.summary),bottom,element('span',entry.slides?'文字 + 漫画幻灯片':'文字已整理 · 幻灯片待补',entry.slides?'pdf-badge':'pdf-badge text-ready'));
-  card.dataset.show=entry.show;card.append(cover,copy);return card;
+  const copy = element('div', undefined, 'card-copy');
+  const meta = element('div', undefined, 'card-meta');
+  meta.append(element('span', entry.topic), document.createTextNode(' · '), element('time', entry.date));
+  const title = element('h3'); const link = element('a', entry.title); link.href = entry.url; title.append(link);
+  const bottom = element('div', undefined, 'card-bottom');
+  if (entry.slides) bottom.append(element('span', 'PPT', 'card-tag ppt'));
+  copy.append(meta, title, element('p', entry.summary), bottom);
+  card.dataset.show = entry.show; card.append(cover, copy); return card;
 }
 async function filter(reset = true) {
   if (!grid) return;
@@ -258,7 +261,7 @@ document.addEventListener('click', event => {
 });
 
 // -------------------------------------------------------------
-// 2. In-Page Slide Viewer (PDF 在页面中打开、一页页查看)
+// 2. In-Page Slide Viewer (PDF 在页面中打开、纯粹翻页查看)
 // -------------------------------------------------------------
 const slideViewer = document.querySelector('#slide-viewer');
 const slideTitle = slideViewer?.querySelector('#slide-title');
@@ -271,10 +274,14 @@ const slideCanvas = slideViewer?.querySelector('#slide-canvas');
 const slideLoading = slideViewer?.querySelector('#slide-loading');
 const slidePrevBtn = slideViewer?.querySelector('#slide-prev');
 const slideNextBtn = slideViewer?.querySelector('#slide-next');
-const slideNavPrev = slideViewer?.querySelector('#slide-nav-prev');
-const slideNavNext = slideViewer?.querySelector('#slide-nav-next');
-const slideScrubber = slideViewer?.querySelector('#slide-scrubber');
 const slideCanvasBox = slideViewer?.querySelector('#slide-canvas-box');
+const slideEndCard = slideViewer?.querySelector('#slide-end-card');
+const slideEndTitle = slideViewer?.querySelector('#slide-end-current-title');
+const slideJumpNext = slideViewer?.querySelector('#slide-jump-next');
+const slideJumpNextTitle = slideViewer?.querySelector('#slide-jump-next-title');
+const slideJumpPrev = slideViewer?.querySelector('#slide-jump-prev');
+const slideJumpPrevTitle = slideViewer?.querySelector('#slide-jump-prev-title');
+const slideReplayBtn = slideViewer?.querySelector('#slide-replay-btn');
 
 let currentPdfDoc = null;
 let currentPdfPage = 1;
@@ -282,6 +289,14 @@ let totalPdfPages = 0;
 let isRendering = false;
 let pendingPage = null;
 let currentRenderTask = null;
+let currentSlideMeta = {
+  url: '',
+  title: '',
+  prevSlides: '',
+  prevTitle: '',
+  nextSlides: '',
+  nextTitle: ''
+};
 
 async function getPdfjs() {
   if (window.pdfjsLib) return window.pdfjsLib;
@@ -293,7 +308,48 @@ async function getPdfjs() {
   return lib;
 }
 
-async function openSlideViewer(pdfUrl, title) {
+function showEndCard() {
+  if (!slideEndCard) return;
+  if (slideEndTitle) slideEndTitle.textContent = currentSlideMeta.title;
+  if (currentSlideMeta.nextSlides) {
+    if (slideJumpNext) {
+      slideJumpNext.hidden = false;
+      if (slideJumpNextTitle) slideJumpNextTitle.textContent = currentSlideMeta.nextTitle || '下一篇';
+    }
+  } else {
+    if (slideJumpNext) slideJumpNext.hidden = true;
+  }
+  if (currentSlideMeta.prevSlides) {
+    if (slideJumpPrev) {
+      slideJumpPrev.hidden = false;
+      if (slideJumpPrevTitle) slideJumpPrevTitle.textContent = currentSlideMeta.prevTitle || '上一篇';
+    }
+  } else {
+    if (slideJumpPrev) slideJumpPrev.hidden = true;
+  }
+  slideEndCard.hidden = false;
+}
+
+function hideEndCard() {
+  if (slideEndCard) slideEndCard.hidden = true;
+}
+
+slideJumpNext?.addEventListener('click', () => {
+  if (currentSlideMeta.nextSlides) {
+    openSlideViewer(currentSlideMeta.nextSlides, currentSlideMeta.nextTitle);
+  }
+});
+slideJumpPrev?.addEventListener('click', () => {
+  if (currentSlideMeta.prevSlides) {
+    openSlideViewer(currentSlideMeta.prevSlides, currentSlideMeta.prevTitle);
+  }
+});
+slideReplayBtn?.addEventListener('click', () => {
+  hideEndCard();
+  renderSlidePage(1);
+});
+
+async function openSlideViewer(pdfUrl, title, meta = {}) {
   if (!slideViewer) return;
   slideViewer.showModal();
   if (slideTitle) slideTitle.textContent = title || '漫画幻灯片';
@@ -304,7 +360,16 @@ async function openSlideViewer(pdfUrl, title) {
   }
   if (slidePageNum) slidePageNum.textContent = '1';
   if (slidePageCount) slidePageCount.textContent = '-';
-  if (slideScrubber) { slideScrubber.min = '1'; slideScrubber.max = '1'; slideScrubber.value = '1'; }
+  hideEndCard();
+
+  currentSlideMeta = {
+    url: pdfUrl,
+    title: title || '漫画幻灯片',
+    prevSlides: meta.prevSlides || '',
+    prevTitle: meta.prevTitle || '',
+    nextSlides: meta.nextSlides || '',
+    nextTitle: meta.nextTitle || ''
+  };
 
   try {
     const pdfjs = await getPdfjs();
@@ -312,7 +377,6 @@ async function openSlideViewer(pdfUrl, title) {
     currentPdfDoc = await loadingTask.promise;
     totalPdfPages = currentPdfDoc.numPages;
     if (slidePageCount) slidePageCount.textContent = String(totalPdfPages);
-    if (slideScrubber) slideScrubber.max = String(totalPdfPages);
     currentPdfPage = 1;
     renderSlidePage(currentPdfPage);
   } catch (err) {
@@ -361,11 +425,14 @@ async function renderSlidePage(num) {
 
     currentPdfPage = num;
     if (slidePageNum) slidePageNum.textContent = String(num);
-    if (slideScrubber) slideScrubber.value = String(num);
     if (slidePrevBtn) slidePrevBtn.disabled = num <= 1;
     if (slideNextBtn) slideNextBtn.disabled = num >= totalPdfPages;
-    if (slideNavPrev) slideNavPrev.disabled = num <= 1;
-    if (slideNavNext) slideNavNext.disabled = num >= totalPdfPages;
+
+    if (num === totalPdfPages) {
+      showEndCard();
+    } else {
+      hideEndCard();
+    }
   } catch (err) {
     if (err?.name !== 'RenderingCancelledException') {
       console.error('Render error:', err);
@@ -382,27 +449,99 @@ async function renderSlidePage(num) {
 }
 
 function prevSlide() {
-  if (currentPdfPage > 1) renderSlidePage(currentPdfPage - 1);
+  if (currentPdfPage > 1) {
+    hideEndCard();
+    renderSlidePage(currentPdfPage - 1);
+  }
 }
+
 function nextSlide() {
-  if (currentPdfPage < totalPdfPages) renderSlidePage(currentPdfPage + 1);
+  if (currentPdfPage < totalPdfPages) {
+    renderSlidePage(currentPdfPage + 1);
+  } else if (currentPdfPage === totalPdfPages) {
+    showEndCard();
+  }
 }
+
+function isSlideFs() {
+  return Boolean(
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    slideViewer?.classList.contains('is-fullscreen')
+  );
+}
+
+function updateFsButton(fs) {
+  if (slideFsBtn) {
+    slideFsBtn.textContent = fs ? '🗗 退出' : '⛶ 全屏';
+    slideFsBtn.setAttribute('aria-label', fs ? '退出全屏' : '全屏模式');
+  }
+}
+
+function toggleSlideFullscreen() {
+  if (!slideViewer) return;
+  const inFs = isSlideFs();
+  if (!inFs) {
+    const req = slideViewer.requestFullscreen ||
+                slideViewer.webkitRequestFullscreen ||
+                slideViewer.mozRequestFullScreen ||
+                slideViewer.msRequestFullscreen;
+    if (req) {
+      req.call(slideViewer).then(() => {
+        updateFsButton(true);
+        setTimeout(() => renderSlidePage(currentPdfPage), 100);
+      }).catch(() => {
+        slideViewer.classList.add('is-fullscreen');
+        updateFsButton(true);
+        renderSlidePage(currentPdfPage);
+      });
+    } else {
+      slideViewer.classList.add('is-fullscreen');
+      updateFsButton(true);
+      renderSlidePage(currentPdfPage);
+    }
+  } else {
+    const exit = document.exitFullscreen ||
+                 document.webkitExitFullscreen ||
+                 document.mozCancelFullScreen ||
+                 document.msExitFullscreen;
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      exit?.call(document).catch(() => {});
+    }
+    slideViewer.classList.remove('is-fullscreen');
+    updateFsButton(false);
+    setTimeout(() => renderSlidePage(currentPdfPage), 100);
+  }
+}
+
+document.addEventListener('fullscreenchange', () => {
+  const inFs = Boolean(document.fullscreenElement);
+  updateFsButton(inFs);
+  if (slideViewer?.open) renderSlidePage(currentPdfPage);
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  const inFs = Boolean(document.webkitFullscreenElement);
+  updateFsButton(inFs);
+  if (slideViewer?.open) renderSlidePage(currentPdfPage);
+});
+
+slideFsBtn?.addEventListener('click', toggleSlideFullscreen);
+
 function closeSlideViewer() {
+  if (isSlideFs()) {
+    toggleSlideFullscreen();
+  }
   if (currentRenderTask) {
     try { currentRenderTask.cancel(); } catch {}
     currentRenderTask = null;
   }
   currentPdfDoc = null;
+  hideEndCard();
   if (slideViewer?.open) slideViewer.close();
 }
 
 slidePrevBtn?.addEventListener('click', prevSlide);
 slideNextBtn?.addEventListener('click', nextSlide);
-slideNavPrev?.addEventListener('click', prevSlide);
-slideNavNext?.addEventListener('click', nextSlide);
-slideScrubber?.addEventListener('input', () => {
-  renderSlidePage(Number(slideScrubber.value));
-});
 slideCloseBtn?.addEventListener('click', closeSlideViewer);
 
 slideViewer?.addEventListener('keydown', event => {
@@ -424,17 +563,9 @@ slideViewer?.addEventListener('keydown', event => {
   }
 });
 
-// Fullscreen toggle button
-slideFsBtn?.addEventListener('click', () => {
-  if (!document.fullscreenElement) {
-    slideViewer?.requestFullscreen().catch(() => {});
-  } else {
-    document.exitFullscreen().catch(() => {});
-  }
-});
-
 // Click left / right sides of canvas to navigate
 slideCanvasBox?.addEventListener('click', event => {
+  if (slideEndCard && !slideEndCard.hidden && slideEndCard.contains(event.target)) return;
   if (event.target === slideCanvas) {
     const rect = slideCanvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -468,11 +599,110 @@ window.addEventListener('resize', () => {
   }
 });
 
+// -------------------------------------------------------------
+// 3. Global Catalog Drawer (全站故事目录)
+// -------------------------------------------------------------
+const catalogDialog = document.querySelector('#global-catalog');
+const catalogFilterInput = catalogDialog?.querySelector('#catalog-filter-input');
+const catalogTabs = catalogDialog?.querySelectorAll('[data-cat-filter]');
+let currentCatShow = 'all';
+
+function openCatalog() {
+  if (!catalogDialog) return;
+  catalogDialog.showModal();
+  const activeItem = catalogDialog.querySelector('.cat-item.active');
+  if (activeItem) {
+    setTimeout(() => {
+      activeItem.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 60);
+  }
+}
+
+function closeCatalog() {
+  if (catalogDialog?.open) catalogDialog.close();
+}
+
+function filterCatalog() {
+  if (!catalogDialog) return;
+  const q = (catalogFilterInput?.value || '').trim().toLowerCase();
+  const groups = catalogDialog.querySelectorAll('.cat-group');
+  groups.forEach(group => {
+    const groupShow = group.dataset.show;
+    const showMatch = currentCatShow === 'all' || groupShow === currentCatShow;
+    if (!showMatch) {
+      group.hidden = true;
+      return;
+    }
+    const items = group.querySelectorAll('.cat-item');
+    let visibleInGroup = 0;
+    items.forEach(item => {
+      const title = (item.querySelector('.cat-title')?.textContent || '').toLowerCase();
+      const match = !q || title.includes(q);
+      item.hidden = !match;
+      if (match) visibleInGroup++;
+    });
+    group.hidden = visibleInGroup === 0;
+  });
+}
+
+catalogTabs?.forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentCatShow = btn.dataset.catFilter;
+    catalogTabs.forEach(b => b.classList.toggle('active', b === btn));
+    filterCatalog();
+  });
+});
+
+catalogFilterInput?.addEventListener('input', filterCatalog);
+catalogDialog?.querySelector('[data-close-catalog]')?.addEventListener('click', closeCatalog);
+catalogDialog?.addEventListener('click', event => {
+  if (event.target === catalogDialog) closeCatalog();
+});
+
+// -------------------------------------------------------------
+// 4. Global Keyboard Shortcuts & Event Delegation
+// -------------------------------------------------------------
+window.addEventListener('keydown', event => {
+  if (event.target.matches('input, textarea, select')) return;
+  if (document.querySelector('dialog[open]')) return;
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+  if (event.key === 'ArrowLeft') {
+    const prev = document.querySelector('.quick-nav-prev');
+    if (prev && prev.href) {
+      event.preventDefault();
+      location.assign(prev.href);
+    }
+  } else if (event.key === 'ArrowRight') {
+    const next = document.querySelector('.quick-nav-next');
+    if (next && next.href) {
+      event.preventDefault();
+      location.assign(next.href);
+    }
+  } else if (event.key === 'm' || event.key === 'M') {
+    event.preventDefault();
+    openCatalog();
+  }
+});
+
+// Global trigger for [data-open-catalog]
+document.addEventListener('click', event => {
+  if (event.target.closest('[data-open-catalog]')) {
+    event.preventDefault();
+    openCatalog();
+  }
+});
+
 // Global trigger for [data-open-slides]
 document.addEventListener('click', event => {
   const btn = event.target.closest('[data-open-slides]');
   if (btn) {
     event.preventDefault();
-    openSlideViewer(btn.dataset.openSlides, btn.dataset.title);
+    openSlideViewer(btn.dataset.openSlides, btn.dataset.title, {
+      prevSlides: btn.dataset.prevSlides,
+      prevTitle: btn.dataset.prevTitle,
+      nextSlides: btn.dataset.nextSlides,
+      nextTitle: btn.dataset.nextTitle
+    });
   }
 });

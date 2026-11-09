@@ -19,13 +19,73 @@ TOPICS = list(dict.fromkeys(ep['topic'] for ep in QUEUE))
 SHOWS = {'半拿铁':'bannatie', '知行小酒馆':'zhixing'}
 TOPIC_GROUPS = list(dict.fromkeys((ep['show'],ep['topic']) for ep in QUEUE))
 
-def shell(title, body, description='把播客里的长故事，变成看得懂的图文。半拿铁与知行小酒馆的中文图解知识库。', home=False):
-    result = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{E(title)} · 播客图解</title><meta name="description" content="{E(description)}"><meta name="theme-color" content="#f5f0e6"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><meta property="og:title" content="{E(title)} · 播客图解"><meta property="og:description" content="{E(description)}"><meta property="og:image" content="{CFG['domain']}/assets/share.svg"><script async src="https://cloud.umami.is/script.js" data-website-id="e01c9f78-4607-4e60-b01c-77c8190b12b4"></script><script type="module" src="/app.js"></script></head><body><a class="skip" href="#main">跳到正文</a><header class="topbar"><a class="brand" href="/" aria-label="播客图解首页"><span class="brand-icon">▰</span> 播客图解<span class="brand-en">PODCAST ATLAS</span></a><nav aria-label="主导航"><a href="/topics/">专题</a><a href="/#library">单集</a><a href="/progress/">制作进度</a><a href="{CFG['repo']}" target="_blank" rel="noopener noreferrer">GitHub ↗</a><button class="command-trigger" type="button" data-open-search aria-haspopup="dialog">搜索 <kbd>⌘ K</kbd></button></nav></header><main id="main">{body}</main>{search_dialog()}{lightbox_dialog()}{slide_viewer_dialog()}<footer><a class="brand" href="/">播客图解</a><p>故事来自半拿铁与知行小酒馆。图文由逐字稿整理，保留原节目入口；识别和整理可能有误，建议结合原节目阅读。</p><span>中文图文知识库 · v{VERSION}</span><a href="{CFG['repo']}" target="_blank" rel="noopener noreferrer">源码与说明 ↗</a></footer></body></html>'''
+def shell(title, body, description='把播客里的长故事，变成看得懂的图文。半拿铁与知行小酒馆的中文图解知识库。', home=False, current_eid=None):
+    result = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{E(title)} · 播客图解</title><meta name="description" content="{E(description)}"><meta name="theme-color" content="#f5f0e6"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><meta property="og:title" content="{E(title)} · 播客图解"><meta property="og:description" content="{E(description)}"><meta property="og:image" content="{CFG['domain']}/assets/share.svg"><script async src="https://cloud.umami.is/script.js" data-website-id="e01c9f78-4607-4e60-b01c-77c8190b12b4"></script><script type="module" src="/app.js"></script></head><body><a class="skip" href="#main">跳到正文</a><header class="topbar"><a class="brand" href="/" aria-label="播客图解首页"><span class="brand-icon">▰</span> 播客图解<span class="brand-en">PODCAST ATLAS</span></a><nav aria-label="主导航"><button class="catalog-trigger" type="button" data-open-catalog aria-label="打开全站目录" title="目录 (M)"><span class="catalog-icon">☰</span> 目录</button><a href="/topics/">专题</a><a href="/#library">单集</a><a href="/progress/">制作进度</a><a href="{CFG['repo']}" target="_blank" rel="noopener noreferrer">GitHub ↗</a><button class="command-trigger" type="button" data-open-search aria-haspopup="dialog">搜索 <kbd>⌘ K</kbd></button></nav></header><main id="main">{body}</main><button class="floating-catalog" type="button" data-open-catalog aria-label="打开全站目录" title="目录 (M)"><span>☰ 目录</span></button>{search_dialog()}{lightbox_dialog()}{slide_viewer_dialog()}{catalog_drawer(current_eid)}<footer><a class="brand" href="/">播客图解</a><p>故事来自半拿铁与知行小酒馆。图文由逐字稿整理，保留原节目入口；识别和整理可能有误，建议结合原节目阅读。</p><span>中文图文知识库 · v{VERSION}</span><a href="{CFG['repo']}" target="_blank" rel="noopener noreferrer">源码与说明 ↗</a></footer></body></html>'''
 
     for name in ['style.css', 'app.js']:
         result = result.replace('/' + name, ASSET_PREFIX + name)
     base = CFG.get('base_path', '')
-    return result.replace('href="/', 'href="'+base+'/').replace('src="/', 'src="'+base+'/').replace('data-open-slides="/', 'data-open-slides="'+base+'/')
+    return (result.replace('href="/', 'href="'+base+'/')
+                  .replace('src="/', 'src="'+base+'/')
+                  .replace('data-open-slides="/', 'data-open-slides="'+base+'/')
+                  .replace('data-prev-slides="/', 'data-prev-slides="'+base+'/')
+                  .replace('data-next-slides="/', 'data-next-slides="'+base+'/')
+    )
+
+def catalog_drawer(current_eid=None):
+    groups = []
+    for show, topic in TOPIC_GROUPS:
+        eps = [e for e in QUEUE if e['show'] == show and e['topic'] == topic]
+        ready_count = sum(e['id'] in ARTICLES for e in eps)
+        items = []
+        for e in eps:
+            is_active = (e['id'] == current_eid)
+            a = ARTICLES.get(e['id'])
+            has_pdf = (ROOT / 'assets/slides' / (e['id'] + '.pdf')).exists()
+            link = article_url(e['id']) if a else (topic_url(topic, show) + '#episode-' + e['id'])
+            title = a['headline'] if a else clean_title(e['title'])
+            tag = '<span class="cat-tag">PPT</span>' if has_pdf else ''
+            active_cls = ' active' if is_active else ''
+            curr_attr = ' aria-current="page"' if is_active else ''
+            order_text = f'{e["order"]:02d}' if e.get('order', 10000) < 10000 else ''
+            items.append(
+                f'<li class="cat-item{active_cls}" data-eid="{e["id"]}" data-show="{E(show)}">'
+                f'<a href="{link}"{curr_attr}>'
+                f'<span class="cat-order">{order_text}</span>'
+                f'<span class="cat-title">{E(title)}</span>'
+                f'{tag}'
+                f'</a></li>'
+            )
+        groups.append(
+            f'<div class="cat-group" data-show="{E(show)}">'
+            f'<div class="cat-group-header">'
+            f'<h4><a href="{topic_url(topic, show)}">{E(topic)}</a></h4>'
+            f'<span class="cat-group-count">{ready_count}/{len(eps)} 集</span>'
+            f'</div>'
+            f'<ul class="cat-list">{"".join(items)}</ul>'
+            f'</div>'
+        )
+    return (
+        f'<dialog id="global-catalog" class="global-catalog" aria-label="全站故事目录">'
+        f'<div class="catalog-shell">'
+        f'<header class="catalog-header">'
+        f'<div class="catalog-title-row">'
+        f'<h3>故事目录</h3>'
+        f'<button type="button" class="catalog-close" data-close-catalog aria-label="关闭目录">✕</button>'
+        f'</div>'
+        f'<div class="catalog-tools">'
+        f'<div class="catalog-tabs" role="group" aria-label="按播客筛选">'
+        f'<button type="button" class="active" data-cat-filter="all">全部</button>'
+        f'<button type="button" data-cat-filter="半拿铁">半拿铁</button>'
+        f'<button type="button" data-cat-filter="知行小酒馆">知行小酒馆</button>'
+        f'</div>'
+        f'<input type="search" id="catalog-filter-input" placeholder="在目录中搜索..." aria-label="搜索目录">'
+        f'</div>'
+        f'</header>'
+        f'<div class="catalog-body" id="catalog-body">{"".join(groups)}</div>'
+        f'</div>'
+        f'</dialog>'
+    )
 
 def topic_url(topic, show=None):
     if show is None: return '/topics/' + str(TOPICS.index(topic) + 1) + '/'
@@ -39,7 +99,7 @@ def lightbox_dialog():
     return '''<dialog id="image-lightbox" class="image-lightbox" aria-modal="true" aria-label="查看大图"><div class="lightbox-shell"><button type="button" class="lightbox-close" data-close-lightbox aria-label="关闭大图">关闭 <kbd>Esc</kbd></button><div class="lightbox-stage"><img id="lightbox-img" src="" alt=""><p id="lightbox-caption" class="lightbox-caption"></p></div></div></dialog>'''
 
 def slide_viewer_dialog():
-    return '''<dialog id="slide-viewer" class="slide-viewer" aria-modal="true" aria-label="幻灯片翻页查看"><div class="slide-viewer-shell"><header class="slide-viewer-top"><div class="slide-viewer-info"><h3 id="slide-title"></h3><span class="slide-counter">第 <b id="slide-page-num">1</b> / <span id="slide-page-count">-</span> 页</span></div><div class="slide-viewer-tools"><a class="slide-btn" id="slide-download-btn" href="" download>下载 PDF ↓</a><button type="button" class="slide-btn" id="slide-fs-btn" aria-label="全屏切换">全屏 ⛶</button><button type="button" class="slide-btn slide-btn-close" data-close-slides aria-label="关闭幻灯片">关闭 <kbd>Esc</kbd></button></div></header><div class="slide-viewer-body" id="slide-body"><button type="button" class="slide-arrow slide-prev" id="slide-prev" aria-label="上一页">‹</button><div class="slide-canvas-box" id="slide-canvas-box"><canvas id="slide-canvas"></canvas><div class="slide-loading" id="slide-loading"><span>正在载入幻灯片…</span></div></div><button type="button" class="slide-arrow slide-next" id="slide-next" aria-label="下一页">›</button></div><footer class="slide-viewer-nav"><button type="button" class="slide-nav-btn" id="slide-nav-prev">← 上一页</button><input type="range" class="slide-scrubber" id="slide-scrubber" min="1" max="1" value="1" aria-label="滑动翻页"><button type="button" class="slide-nav-btn" id="slide-nav-next">下一页 →</button></footer></div></dialog>'''
+    return '''<dialog id="slide-viewer" class="slide-viewer" aria-modal="true" aria-label="幻灯片查看器"><div class="slide-viewer-shell"><header class="slide-viewer-top"><div class="slide-viewer-info"><h3 id="slide-title"></h3><span class="slide-counter"><b id="slide-page-num">1</b> / <span id="slide-page-count">-</span></span></div><div class="slide-viewer-tools"><button type="button" class="slide-btn" id="slide-fs-btn" aria-label="全屏模式">⛶ 全屏</button><a class="slide-btn" id="slide-download-btn" href="" download>↓ 下载</a><button type="button" class="slide-btn slide-btn-close" data-close-slides aria-label="关闭幻灯片">✕</button></div></header><div class="slide-viewer-body" id="slide-body"><button type="button" class="slide-arrow slide-prev" id="slide-prev" aria-label="上一页">‹</button><div class="slide-canvas-box" id="slide-canvas-box"><canvas id="slide-canvas"></canvas><div class="slide-loading" id="slide-loading"><span>正在载入幻灯片…</span></div><div class="slide-end-card" id="slide-end-card" hidden><div class="slide-end-inner"><span class="slide-end-kicker">本集幻灯片已看完</span><h4 id="slide-end-current-title"></h4><div class="slide-end-actions"><button type="button" class="slide-end-btn next" id="slide-jump-next" hidden><span class="slide-end-btn-dir">下一篇幻灯片 →</span><strong id="slide-jump-next-title"></strong></button><button type="button" class="slide-end-btn prev" id="slide-jump-prev" hidden><span class="slide-end-btn-dir">← 上一篇幻灯片</span><strong id="slide-jump-prev-title"></strong></button><button type="button" class="slide-end-btn replay" id="slide-replay-btn"><span>↺ 从头再看</span></button></div></div></div></div><button type="button" class="slide-arrow slide-next" id="slide-next" aria-label="下一页">›</button></div></div></dialog>'''
 
 def show_series(show, limit=None):
     topics=[topic for owner,topic in TOPIC_GROUPS if owner==show]
@@ -72,14 +132,19 @@ def card(ep):
     search_text = ep['title']+' '+ep['topic']+' '+ep['show']
     if a:
         search_text += ' '+a['headline']+' '+a['dek']+' '+' '.join(p['name']+' '+p['role'] for p in a['people'])+' '+' '.join(s['title'] for s in a['sections'])+' '+' '.join(g['term'] for g in a['glossary'])
-    return f'''<article class="episode-card" data-search="{E(search_text)}" data-show="{E(ep['show'])}"><a href="{link}" class="card-cover">{cover(ep)}</a><div class="card-copy"><div class="eyebrow">{E(ep['show'])} <span> / </span> {E(ep['topic'])}</div><h3><a href="{link}">{E(headline)}</a></h3><p>{E(dek)}</p><div class="card-bottom"><span>{ep['date']}</span><a href="{link}">{'阅读图解 ↗' if ready else '查看专题 →'}</a></div>{('<span class="pdf-badge">文字 + 漫画幻灯片</span>' if pdf else '<span class="pdf-badge text-ready">文字已整理 · 幻灯片待补</span>') if ready else ''}</div></article>'''
+    badge = '<span class="card-tag ppt">PPT</span>' if pdf else ''
+    return f'''<article class="episode-card" data-search="{E(search_text)}" data-show="{E(ep['show'])}"><a href="{link}" class="card-cover">{cover(ep)}</a><div class="card-copy"><div class="card-meta"><span>{E(ep['topic'])}</span> · <time>{ep['date']}</time></div><h3><a href="{link}">{E(headline)}</a></h3><p>{E(dek)}</p><div class="card-bottom">{badge}</div></div></article>'''
 
 def index(page=1):
     completed = len(ARTICLES); available = sum(ep['available'] for ep in QUEUE)
-    hero_ep = next((ep for ep in QUEUE if ep['id'] in ARTICLES), QUEUE[0] if QUEUE else None)
+    hero_id = '64804a7d6752b5f9de296733'
+    hero_ep = next((ep for ep in QUEUE if ep['id'] == hero_id), None) or next((ep for ep in QUEUE if ep['id'] in ARTICLES), QUEUE[0] if QUEUE else None)
     if hero_ep:
-        hero_art = ARTICLES.get(hero_ep['id']); hero_link = article_url(hero_ep['id']) if hero_art else topic_url(hero_ep['topic'],hero_ep['show'])
-        hero_visual = f'<a class="hero-story" href="{hero_link}">{cover(hero_ep, priority=True)}<div class="hero-caption"><span>中国互联网故事 01</span><strong>{E(hero_art["headline"] if hero_art else "互联网之前，谁是中国的科技巨头？")}</strong></div></a>'
+        hero_art = ARTICLES.get(hero_ep['id'])
+        hero_link = article_url(hero_ep['id']) if hero_art else topic_url(hero_ep['topic'], hero_ep['show'])
+        hero_headline = hero_art["headline"] if hero_art else clean_title(hero_ep['title'])
+        hero_order = f'{hero_ep["order"]:02d}' if hero_ep.get('order', 0) < 10000 else '01'
+        hero_visual = f'<a class="hero-story" href="{hero_link}">{cover(hero_ep, priority=True)}<div class="hero-caption"><span>{E(hero_ep["topic"])} · {hero_order}</span><strong>{E(hero_headline)}</strong></div></a>'
     else: hero_visual = ''
     series = ''.join(show_series(show,limit=6) for show in SHOWS)
     ready = [ep for ep in QUEUE if ep['id'] in ARTICLES]
@@ -136,15 +201,71 @@ def episode(ep, a):
     if citations: caveats += '<li>校对参考：<ul>' + citations + '</ul></li>'
     siblings = [x for x in QUEUE if x['topic'] == ep['topic'] and x['show'] == ep['show'] and x['id'] in ARTICLES]
     position = next(i for i,x in enumerate(siblings) if x['id'] == eid)
+    prev_ep = siblings[position - 1] if position > 0 else None
     next_ep = siblings[position + 1] if position + 1 < len(siblings) else None
-    next_link = f'<a href="{article_url(next_ep["id"])}">接着读：{E(ARTICLES[next_ep["id"]]["headline"])} →</a>' if next_ep else f'<a href="{topic_url(ep["topic"],ep["show"])}">回到专题，看看后面的故事 →</a>'
+
+    # Slide navigation context for viewer
+    all_slide_eps = [x for x in QUEUE if (ROOT / 'assets/slides' / (x['id'] + '.pdf')).exists()]
+    topic_slide_eps = [x for x in siblings if (ROOT / 'assets/slides' / (x['id'] + '.pdf')).exists()]
+    topic_slide_pos = next((i for i, x in enumerate(topic_slide_eps) if x['id'] == eid), -1)
+    if topic_slide_pos > 0:
+        prev_slide_ep = topic_slide_eps[topic_slide_pos - 1]
+    else:
+        glob_slide_pos = next((i for i, x in enumerate(all_slide_eps) if x['id'] == eid), -1)
+        prev_slide_ep = all_slide_eps[glob_slide_pos - 1] if glob_slide_pos > 0 else None
+
+    if topic_slide_pos >= 0 and topic_slide_pos + 1 < len(topic_slide_eps):
+        next_slide_ep = topic_slide_eps[topic_slide_pos + 1]
+    else:
+        glob_slide_pos = next((i for i, x in enumerate(all_slide_eps) if x['id'] == eid), -1)
+        next_slide_ep = all_slide_eps[glob_slide_pos + 1] if glob_slide_pos >= 0 and glob_slide_pos + 1 < len(all_slide_eps) else None
+
+    def ep_headline(target_ep):
+        if not target_ep: return ''
+        if target_ep['id'] in ARTICLES: return ARTICLES[target_ep['id']]['headline']
+        return clean_title(target_ep['title'])
+
     if pdf:
         pdf_url = f'/assets/slides/{eid}.pdf'
-        slides = f'<button type="button" class="button button-slides" data-open-slides="{pdf_url}" data-title="{E(a["headline"])}">在页面中翻页浏览 <span>📖</span></button><a class="text-link" href="{pdf_url}" download>下载 PDF ↓</a><a class="text-link" href="{pdf_url}" target="_blank" rel="noopener">新窗口打开 ↗</a>'
+        prev_slide_url = f'/assets/slides/{prev_slide_ep["id"]}.pdf' if prev_slide_ep else ''
+        prev_slide_title = ep_headline(prev_slide_ep)
+        next_slide_url = f'/assets/slides/{next_slide_ep["id"]}.pdf' if next_slide_ep else ''
+        next_slide_title = ep_headline(next_slide_ep)
+        slides = (f'<button type="button" class="button button-slides" '
+                  f'data-open-slides="{pdf_url}" '
+                  f'data-title="{E(a["headline"])}" '
+                  f'data-prev-slides="{prev_slide_url}" '
+                  f'data-prev-title="{E(prev_slide_title)}" '
+                  f'data-next-slides="{next_slide_url}" '
+                  f'data-next-title="{E(next_slide_title)}">'
+                  f'在页面中翻页浏览 <span>📖</span></button>'
+                  f'<a class="text-link" href="{pdf_url}" download>下载 PDF ↓</a>'
+                  f'<a class="text-link" href="{pdf_url}" target="_blank" rel="noopener">新窗口打开 ↗</a>')
     else:
         slides = '<span class="notice">文字讲解已整理，可以先读。漫画幻灯片会逐步补上。</span>'
-    body = f'''<div class="wrap article-intro"><a class="breadcrumb" href="{topic_url(ep['topic'],ep['show'])}">← {E(ep['topic'])}</a><p class="eyebrow">{E(ep['show'])} / 第 {ep['order']} 集 · {ep['date']}</p><h1>{E(a['headline'])}</h1><p class="article-dek">{E(a['dek'])}</p><div class="hero-actions">{slides}<a class="text-link" href="{E(ep['url'])}" target="_blank" rel="noopener noreferrer">听原节目 ↗</a></div></div><div class="wrap article-layout"><aside class="toc">{chapter_links}<a href="#timeline">故事时间线</a><a href="#people">人物与关系</a><a href="#mechanism">理清因果</a><a href="#glossary">术语说人话</a></aside><div class="article-content"><section class="takeaways"><ul>{takeaways}</ul></section>{sections}<section class="chapter" id="timeline"><h2>把故事放回时间里。</h2><ol class="timeline">{timeline}</ol></section><section class="chapter" id="people"><h2>谁，推动了这个故事？</h2><div class="people-grid">{people}</div><ul class="connections">{connections}</ul></section><section class="chapter" id="mechanism"><h2>{E(a['mechanism']['title'])}</h2><ol class="mechanism">{flow}</ol></section><section class="chapter" id="glossary"><h2>这些词，其实不难懂。</h2><dl class="glossary">{terms}</dl></section><section class="source-note"><h3>读到这里，也保留一点疑问。</h3><ul>{caveats}</ul><p>本文根据《{E(ep['show'])}》{E(ep['title'])}逐字稿整理，不是逐字复制。文稿和AI整理都可能出错；章节旁标出原节目时间，方便回听。图像为AI生成的漫画演绎。</p><a href="{E(ep['url'])}" target="_blank" rel="noopener noreferrer">查看原节目与作者 ↗</a></section><nav class="next-story" aria-label="继续阅读">{next_link}</nav></div></div>'''
-    return shell(a['headline'], body, a['dek'])
+
+    prev_chip = f'<a class="quick-nav-btn quick-nav-prev" href="{article_url(prev_ep["id"])}" title="{E(ARTICLES[prev_ep["id"]]["headline"])}">← 上一篇</a>' if prev_ep else '<span class="quick-nav-btn disabled">← 第一篇</span>'
+    next_chip = f'<a class="quick-nav-btn quick-nav-next" href="{article_url(next_ep["id"])}" title="{E(ARTICLES[next_ep["id"]]["headline"])}">下一篇 →</a>' if next_ep else '<span class="quick-nav-btn disabled">最后一篇 →</span>'
+    quick_nav = f'<div class="article-quick-nav"><a class="breadcrumb" href="{topic_url(ep["topic"],ep["show"])}">← {E(ep["topic"])}</a><div class="quick-nav-controls">{prev_chip}<span class="quick-nav-counter">{position+1} / {len(siblings)}</span>{next_chip}</div></div>'
+
+    if prev_ep:
+        prev_card = f'<a class="pagination-card prev" href="{article_url(prev_ep["id"])}"><span class="pagination-direction">← 上一篇</span><strong class="pagination-title">{E(ARTICLES[prev_ep["id"]]["headline"])}</strong><span class="pagination-meta">{E(prev_ep["show"])} · 第 {prev_ep["order"]} 集</span></a>'
+    else:
+        prev_card = f'<a class="pagination-card back-topic" href="{topic_url(ep["topic"], ep["show"])}"><span class="pagination-direction">专题全集</span><strong class="pagination-title">《{E(ep["topic"])}》</strong><span class="pagination-meta">已是本专题第一集</span></a>'
+
+    if next_ep:
+        next_card = f'<a class="pagination-card next" href="{article_url(next_ep["id"])}"><span class="pagination-direction">下一篇 →</span><strong class="pagination-title">{E(ARTICLES[next_ep["id"]]["headline"])}</strong><span class="pagination-meta">{E(next_ep["show"])} · 第 {next_ep["order"]} 集</span></a>'
+    else:
+        next_card = f'<a class="pagination-card back-topic" href="{topic_url(ep["topic"], ep["show"])}"><span class="pagination-direction">专题全集</span><strong class="pagination-title">《{E(ep["topic"])}》</strong><span class="pagination-meta">已是本专题最后一集</span></a>'
+
+    pagination = f'<nav class="article-pagination" aria-label="相邻故事导航">{prev_card}{next_card}</nav>'
+
+    order_str = f'第 {ep["order"]} 集' if ep.get('order', 0) < 10000 else ''
+    meta_parts = [p for p in [ep['show'], order_str, ep['date']] if p]
+    meta_html = ' · '.join(f'<span>{E(p)}</span>' for p in meta_parts)
+
+    body = f'''<div class="wrap article-intro">{quick_nav}<div class="article-meta">{meta_html}</div><h1>{E(a['headline'])}</h1><p class="article-dek">{E(a['dek'])}</p><div class="hero-actions">{slides}<a class="text-link" href="{E(ep['url'])}" target="_blank" rel="noopener noreferrer">听原节目 ↗</a></div></div><div class="wrap article-layout"><aside class="toc">{chapter_links}<a href="#timeline">故事时间线</a><a href="#people">人物与关系</a><a href="#mechanism">理清因果</a><a href="#glossary">术语说人话</a></aside><div class="article-content"><section class="takeaways"><ul>{takeaways}</ul></section>{sections}<section class="chapter" id="timeline"><h2>把故事放回时间里。</h2><ol class="timeline">{timeline}</ol></section><section class="chapter" id="people"><h2>谁，推动了这个故事？</h2><div class="people-grid">{people}</div><ul class="connections">{connections}</ul></section><section class="chapter" id="mechanism"><h2>{E(a['mechanism']['title'])}</h2><ol class="mechanism">{flow}</ol></section><section class="chapter" id="glossary"><h2>这些词，其实不难懂。</h2><dl class="glossary">{terms}</dl></section><section class="source-note"><h3>读到这里，也保留一点疑问。</h3><ul>{caveats}</ul><p>本文根据《{E(ep['show'])}》{E(ep['title'])}逐字稿整理，不是逐字复制。文稿和AI整理都可能出错；章节旁标出原节目时间，方便回听。图像为AI生成的漫画演绎。</p><a href="{E(ep['url'])}" target="_blank" rel="noopener noreferrer">查看原节目与作者 ↗</a></section>{pagination}</div></div>'''
+    return shell(a['headline'], body, a['dek'], current_eid=eid)
 
 def topic_page(topic, show=None):
     if show is None:
@@ -159,8 +280,9 @@ def topic_page(topic, show=None):
         status=('文字 + 幻灯片' if pdf else '文字已整理 · 幻灯片待补') if a else ('文字待整理' if ep['available'] else '文稿缺失')
         title=E(a['headline'] if a else clean_title(ep['title']))
         name=f'<a href="{article_url(ep["id"])}">{title} ↗</a>' if a else title
-        rows+=f'<li class="topic-row" id="episode-{ep["id"]}" data-show="{E(show)}"><span class="series-no">{(ep["order"] if ep["order"]<10000 else position):02d}</span><div><h2>{name}</h2><p>{E(ep["title"])} · {ep["date"]}</p></div><span class="status {"ready" if a else ""}">{status}</span></li>'
-    return shell(show+' · '+topic,f'<section class="wrap topic-intro"><a class="breadcrumb" href="/topics/#{SHOWS[show]}">← {E(show)}的专题</a><p class="eyebrow">{E(show)} / {n} 集文字已整理</p><h1>{E(topic)}</h1><p class="article-dek">先读文字讲解，漫画幻灯片逐步补齐。这里仅收录《{E(show)}》的单集。</p><ol class="topic-episodes">{rows}</ol></section>')
+        order_no = ep["order"] if ep.get("order", 10000) < 10000 else position
+        rows+=f'<li class="topic-row" id="episode-{ep["id"]}" data-show="{E(show)}"><span class="series-no">{order_no:02d}</span><div><h2>{name}</h2><p>{E(ep["title"])} · {ep["date"]}</p></div><span class="status {"ready" if a else ""}">{status}</span></li>'
+    return shell(show+' · '+topic,f'<section class="wrap topic-intro"><a class="breadcrumb" href="/topics/#{SHOWS[show]}">← {E(show)}的专题</a><h1>{E(topic)}</h1><p class="article-dek">先读文字讲解，漫画幻灯片逐步补齐。这里收录《{E(show)}》共 {len(eps)} 集（已整理 {n} 集）。</p><ol class="topic-episodes">{rows}</ol></section>')
 
 def all_topics():
     groups=''.join(show_series(show) for show in SHOWS)
