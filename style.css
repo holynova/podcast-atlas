@@ -21,7 +21,7 @@
 
 /* Clean metadata and tags (replacing uppercase eyebrows) */
 .card-meta{display:flex;align-items:baseline;gap:6px;font-size:13px;color:var(--muted);margin-bottom:10px;font-weight:500}
-.article-meta{display:flex;align-items:baseline;gap:8px;font-size:14px;color:var(--muted);margin-bottom:16px;font-weight:500}
+.article-meta,.topic-meta{display:flex;align-items:baseline;gap:8px;font-size:14px;color:var(--muted);margin-bottom:16px;font-weight:500}
 .card-tag.ppt,.cat-tag{font-size:11px;background:#e2e8da;color:var(--green);padding:2px 7px;border-radius:3px;font-weight:600;font-family:var(--sans)}
 .button-slides{background:#234a3e;border:1px solid #417364}
 .button-slides:hover{background:#1a382f}

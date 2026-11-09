@@ -282,7 +282,7 @@ def topic_page(topic, show=None):
         name=f'<a href="{article_url(ep["id"])}">{title} ↗</a>' if a else title
         order_no = ep["order"] if ep.get("order", 10000) < 10000 else position
         rows+=f'<li class="topic-row" id="episode-{ep["id"]}" data-show="{E(show)}"><span class="series-no">{order_no:02d}</span><div><h2>{name}</h2><p>{E(ep["title"])} · {ep["date"]}</p></div><span class="status {"ready" if a else ""}">{status}</span></li>'
-    return shell(show+' · '+topic,f'<section class="wrap topic-intro"><a class="breadcrumb" href="/topics/#{SHOWS[show]}">← {E(show)}的专题</a><h1>{E(topic)}</h1><p class="article-dek">先读文字讲解，漫画幻灯片逐步补齐。这里收录《{E(show)}》共 {len(eps)} 集（已整理 {n} 集）。</p><ol class="topic-episodes">{rows}</ol></section>')
+    return shell(show+' · '+topic,f'<section class="wrap topic-intro"><a class="breadcrumb" href="/topics/#{SHOWS[show]}">← {E(show)}的专题</a><div class="topic-meta"><span>{E(show)} / {n} 集已整理</span></div><h1>{E(topic)}</h1><p class="article-dek">先读文字讲解，漫画幻灯片逐步补齐。这里收录《{E(show)}》共 {len(eps)} 集（已整理 {n} 集）。</p><ol class="topic-episodes">{rows}</ol></section>')
 
 def all_topics():
     groups=''.join(show_series(show) for show in SHOWS)
