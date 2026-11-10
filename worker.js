@@ -16,6 +16,10 @@ export default {
       const headers = new Headers(response.headers);
       headers.set('Cache-Control', 'public, max-age=31536000, immutable');
       response = new Response(response.body, {status: response.status, headers});
+    } else if (response.ok && (response.headers.get('content-type') || '').includes('text/html')) {
+      const headers = new Headers(response.headers);
+      headers.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=86400');
+      response = new Response(response.body, {status: response.status, headers});
     }
     const location = response.headers.get('location');
     if (!location) return response;

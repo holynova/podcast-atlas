@@ -1,8 +1,24 @@
 """Content-addressed public assets; original PDFs and reviewed images stay intact."""
-import hashlib, json, pathlib, shutil, subprocess, sys
+import hashlib, json, pathlib, re, shutil, subprocess, sys
 
 def fingerprint(data):
     return hashlib.sha256(data).hexdigest()[:16]
+
+def minify_css(text):
+    text = re.sub(r'/\*[\s\S]*?\*/', '', text)
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return '\n'.join(lines)
+
+def bundle_app_js(app_text, search_text):
+    search_inline = re.sub(r'\bexport\s+', '', search_text)
+    bundled = app_text.replace("import {normalize, searchEntries} from './search.js';", search_inline, 1)
+    lines = []
+    for line in bundled.splitlines():
+        s = line.strip()
+        if not s or s.startswith('//'):
+            continue
+        lines.append(s)
+    return '\n'.join(lines)
 
 def write_asset(dist, data, suffix):
     rel = 'static/' + fingerprint(data) + suffix
@@ -12,12 +28,15 @@ def write_asset(dist, data, suffix):
     return '/' + rel
 
 def prepare(root, dist):
-    names = ['style.css', 'app.js', 'search.js']
-    digest = fingerprint(b''.join((root / n).read_bytes() for n in names))
+    css_bytes = minify_css((root / 'style.css').read_text()).encode()
+    app_bytes = bundle_app_js((root / 'app.js').read_text(), (root / 'search.js').read_text()).encode()
+    search_bytes = (root / 'search.js').read_bytes()
+    digest = fingerprint(css_bytes + app_bytes + search_bytes)
     directory = dist / 'static' / digest
     directory.mkdir(parents=True, exist_ok=True)
-    for name in names:
-        shutil.copyfile(root / name, directory / name)
+    (directory / 'style.css').write_bytes(css_bytes)
+    (directory / 'app.js').write_bytes(app_bytes)
+    (directory / 'search.js').write_bytes(search_bytes)
     # Pillow is already used by the project's slide renderer. Use its bundled
     # interpreter when the shell's Python doesn't have it; allow a portable override.
     import importlib.util, os

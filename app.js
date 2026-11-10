@@ -143,7 +143,11 @@ function openSearch() {
   visibleLimit = 20;
   if (entries) {render(); scheduleBodies();} else loadIndex().then(scheduleBodies).catch(()=>{});
 }
-document.querySelectorAll('[data-open-search]').forEach(button => button.addEventListener('click',openSearch));
+document.querySelectorAll('[data-open-search]').forEach(button => {
+  button.addEventListener('click', openSearch);
+  button.addEventListener('pointerenter', () => { if (!entries) loadIndex().catch(() => {}); }, { once: true });
+  button.addEventListener('focus', () => { if (!entries) loadIndex().catch(() => {}); }, { once: true });
+});
 document.addEventListener('keydown',event => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !event.altKey && !event.isComposing) {
     event.preventDefault(); openSearch();
@@ -271,6 +275,7 @@ const slideDownloadBtn = slideViewer?.querySelector('#slide-download-btn');
 const slideFsBtn = slideViewer?.querySelector('#slide-fs-btn');
 const slideCloseBtn = slideViewer?.querySelector('[data-close-slides]');
 const slideCanvas = slideViewer?.querySelector('#slide-canvas');
+const slideImg = slideViewer?.querySelector('#slide-img');
 const slideLoading = slideViewer?.querySelector('#slide-loading');
 const slidePrevBtn = slideViewer?.querySelector('#slide-prev');
 const slideNextBtn = slideViewer?.querySelector('#slide-next');
@@ -284,6 +289,8 @@ const slideJumpPrevTitle = slideViewer?.querySelector('#slide-jump-prev-title');
 const slideReplayBtn = slideViewer?.querySelector('#slide-replay-btn');
 
 let currentPdfDoc = null;
+let currentSlidePages = null;
+const slideImgCache = new Map();
 let currentPdfPage = 1;
 let totalPdfPages = 0;
 let isRendering = false;
@@ -349,6 +356,18 @@ slideReplayBtn?.addEventListener('click', () => {
   renderSlidePage(1);
 });
 
+function preloadSlideImg(pageNum) {
+  if (!currentSlidePages || pageNum < 1 || pageNum > currentSlidePages.length) return Promise.resolve();
+  const url = currentSlidePages[pageNum - 1];
+  if (slideImgCache.has(url)) return slideImgCache.get(url);
+  const im = new Image();
+  im.decoding = 'async';
+  im.src = url;
+  const p = (im.decode ? im.decode() : new Promise((res, rej) => { im.onload = res; im.onerror = rej; })).catch(() => {});
+  slideImgCache.set(url, p);
+  return p;
+}
+
 async function openSlideViewer(pdfUrl, title, meta = {}) {
   if (!slideViewer) return;
   slideViewer.showModal();
@@ -368,8 +387,24 @@ async function openSlideViewer(pdfUrl, title, meta = {}) {
     prevSlides: meta.prevSlides || '',
     prevTitle: meta.prevTitle || '',
     nextSlides: meta.nextSlides || '',
-    nextTitle: meta.nextTitle || ''
+    nextTitle: meta.nextTitle || '',
+    slidePages: meta.slidePages || null
   };
+  currentSlidePages = Array.isArray(meta.slidePages) && meta.slidePages.length ? meta.slidePages : null;
+
+  if (currentSlidePages && slideImg) {
+    currentPdfDoc = null;
+    if (slideCanvas) slideCanvas.hidden = true;
+    slideImg.hidden = false;
+    totalPdfPages = currentSlidePages.length;
+    if (slidePageCount) slidePageCount.textContent = String(totalPdfPages);
+    currentPdfPage = 1;
+    await renderSlidePage(1);
+    return;
+  }
+
+  if (slideImg) slideImg.hidden = true;
+  if (slideCanvas) slideCanvas.hidden = false;
 
   try {
     const pdfjs = await getPdfjs();
@@ -388,6 +423,22 @@ async function openSlideViewer(pdfUrl, title, meta = {}) {
 }
 
 async function renderSlidePage(num) {
+  if (currentSlidePages && slideImg) {
+    const idx = Math.max(1, Math.min(num, currentSlidePages.length));
+    const url = currentSlidePages[idx - 1];
+    await preloadSlideImg(idx);
+    slideImg.src = url;
+    currentPdfPage = idx;
+    if (slidePageNum) slidePageNum.textContent = String(idx);
+    if (slidePrevBtn) slidePrevBtn.disabled = idx <= 1;
+    if (slideNextBtn) slideNextBtn.disabled = idx >= totalPdfPages;
+    if (slideLoading) slideLoading.hidden = true;
+    if (idx === totalPdfPages) showEndCard(); else hideEndCard();
+    preloadSlideImg(idx + 1);
+    preloadSlideImg(idx + 2);
+    return;
+  }
+
   if (!currentPdfDoc || !slideCanvas) return;
   if (isRendering) {
     pendingPage = num;
@@ -543,6 +594,7 @@ function closeSlideViewer() {
     currentRenderTask = null;
   }
   currentPdfDoc = null;
+  currentSlidePages = null;
   hideEndCard();
   if (slideViewer?.open) slideViewer.close();
 }
@@ -570,11 +622,11 @@ slideViewer?.addEventListener('keydown', event => {
   }
 });
 
-// Click left / right sides of canvas to navigate
+// Click left / right sides of canvas/image to navigate
 slideCanvasBox?.addEventListener('click', event => {
   if (slideEndCard && !slideEndCard.hidden && slideEndCard.contains(event.target)) return;
-  if (event.target === slideCanvas) {
-    const rect = slideCanvas.getBoundingClientRect();
+  if (event.target === slideCanvas || event.target === slideImg) {
+    const rect = event.target.getBoundingClientRect();
     const x = event.clientX - rect.left;
     if (x < rect.width * 0.4) prevSlide();
     else if (x > rect.width * 0.6) nextSlide();
@@ -607,21 +659,82 @@ window.addEventListener('resize', () => {
 });
 
 // -------------------------------------------------------------
-// 3. Global Catalog Drawer (全站故事目录)
+// 3. Global Catalog Drawer (全站故事目录 - Lazy DOM + Cached JSON)
 // -------------------------------------------------------------
 const catalogDialog = document.querySelector('#global-catalog');
+const catalogBody = catalogDialog?.querySelector('#catalog-body');
 const catalogFilterInput = catalogDialog?.querySelector('#catalog-filter-input');
 const catalogTabs = catalogDialog?.querySelectorAll('[data-cat-filter]');
 let currentCatShow = 'all';
+let catalogBuilt = Boolean(catalogBody?.querySelector('.cat-group'));
+let catalogPromise = null;
 
-function openCatalog() {
+function buildCatalogDom(data) {
+  if (!catalogBody || catalogBuilt) return;
+  const currentEid = catalogDialog?.dataset.currentEid || '';
+  const frag = document.createDocumentFragment();
+  for (const g of data.groups || []) {
+    const groupDiv = element('div', undefined, 'cat-group');
+    groupDiv.dataset.show = g.s;
+    const header = element('div', undefined, 'cat-group-header');
+    const h4 = document.createElement('h4');
+    const topicLink = element('a', g.t);
+    topicLink.href = g.u;
+    h4.append(topicLink);
+    const countSpan = element('span', `${g.r}/${g.n} 集`, 'cat-group-count');
+    header.append(h4, countSpan);
+    const ul = element('ul', undefined, 'cat-list');
+    for (const ep of g.eps) {
+      const isActive = ep.id === currentEid;
+      const li = element('li', undefined, isActive ? 'cat-item active' : 'cat-item');
+      li.dataset.eid = ep.id;
+      li.dataset.show = g.s;
+      const a = document.createElement('a');
+      a.href = ep.u;
+      if (isActive) a.setAttribute('aria-current', 'page');
+      const order = element('span', ep.o, 'cat-order');
+      const title = element('span', ep.h, 'cat-title');
+      a.append(order, title);
+      if (ep.p) a.append(element('span', 'PPT', 'cat-tag'));
+      li.append(a);
+      ul.append(li);
+    }
+    groupDiv.append(header, ul);
+    frag.append(groupDiv);
+  }
+  catalogBody.replaceChildren(frag);
+  catalogBuilt = true;
+}
+
+function loadCatalog() {
+  if (catalogBuilt) return Promise.resolve();
+  if (!catalogPromise) {
+    const url = catalogDialog?.dataset.catalogUrl;
+    if (!url) return Promise.resolve();
+    catalogPromise = fetch(url)
+      .then(r => { if (!r.ok) throw new Error('Catalog unavailable'); return r.json(); })
+      .then(data => buildCatalogDom(data))
+      .catch(err => {
+        catalogPromise = null;
+        if (catalogBody) catalogBody.replaceChildren(element('p', '目录加载失败，请刷新重试。', 'catalog-status'));
+        throw err;
+      });
+  }
+  return catalogPromise;
+}
+
+async function openCatalog() {
   if (!catalogDialog) return;
   catalogDialog.showModal();
+  if (!catalogBuilt) {
+    await loadCatalog().catch(() => {});
+  }
+  filterCatalog();
   const activeItem = catalogDialog.querySelector('.cat-item.active');
   if (activeItem) {
     setTimeout(() => {
       activeItem.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }, 60);
+    }, 40);
   }
 }
 
@@ -630,7 +743,7 @@ function closeCatalog() {
 }
 
 function filterCatalog() {
-  if (!catalogDialog) return;
+  if (!catalogDialog || !catalogBuilt) return;
   const q = (catalogFilterInput?.value || '').trim().toLowerCase();
   const groups = catalogDialog.querySelectorAll('.cat-group');
   groups.forEach(group => {
@@ -666,6 +779,21 @@ catalogDialog?.addEventListener('click', event => {
   if (event.target === catalogDialog) closeCatalog();
 });
 
+document.querySelectorAll('[data-open-catalog]').forEach(btn => {
+  btn.addEventListener('pointerenter', () => { loadCatalog().catch(() => {}); }, { once: true });
+  btn.addEventListener('focus', () => { loadCatalog().catch(() => {}); }, { once: true });
+});
+
+// Progressive sticky PPT button reveal once hero button scrolls out of view
+const heroActionsEl = document.querySelector('.article-intro .hero-actions');
+const tocEl = document.querySelector('.toc');
+if (heroActionsEl && tocEl?.querySelector('.toc-ppt-btn')) {
+  const obs = new IntersectionObserver(entries => {
+    tocEl.classList.toggle('show-ppt', !entries[0].isIntersecting);
+  }, { threshold: 0 });
+  obs.observe(heroActionsEl);
+}
+
 // -------------------------------------------------------------
 // 4. Global Keyboard Shortcuts & Event Delegation
 // -------------------------------------------------------------
@@ -675,13 +803,13 @@ window.addEventListener('keydown', event => {
   if (event.altKey || event.ctrlKey || event.metaKey) return;
 
   if (event.key === 'ArrowLeft') {
-    const prev = document.querySelector('.quick-nav-prev');
+    const prev = document.querySelector('.article-pagination .pagination-card.prev');
     if (prev && prev.href) {
       event.preventDefault();
       location.assign(prev.href);
     }
   } else if (event.key === 'ArrowRight') {
-    const next = document.querySelector('.quick-nav-next');
+    const next = document.querySelector('.article-pagination .pagination-card.next');
     if (next && next.href) {
       event.preventDefault();
       location.assign(next.href);
@@ -705,11 +833,16 @@ document.addEventListener('click', event => {
   const btn = event.target.closest('[data-open-slides]');
   if (btn) {
     event.preventDefault();
+    let slidePages = null;
+    if (btn.dataset.slidePages) {
+      try { slidePages = JSON.parse(btn.dataset.slidePages); } catch {}
+    }
     openSlideViewer(btn.dataset.openSlides, btn.dataset.title, {
       prevSlides: btn.dataset.prevSlides,
       prevTitle: btn.dataset.prevTitle,
       nextSlides: btn.dataset.nextSlides,
-      nextTitle: btn.dataset.nextTitle
+      nextTitle: btn.dataset.nextTitle,
+      slidePages
     });
   }
 });
