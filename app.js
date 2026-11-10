@@ -397,7 +397,7 @@ async function renderSlidePage(num) {
     return;
   }
   isRendering = true;
-  if (slideLoading) slideLoading.hidden = false;
+  if (!currentPdfPage && slideLoading) slideLoading.hidden = false;
 
   try {
     const page = await currentPdfDoc.getPage(num);
@@ -411,17 +411,24 @@ async function renderSlidePage(num) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     const viewport = page.getViewport({ scale });
 
-    slideCanvas.width = Math.floor(viewport.width * dpr);
-    slideCanvas.height = Math.floor(viewport.height * dpr);
-    slideCanvas.style.width = Math.floor(viewport.width) + 'px';
-    slideCanvas.style.height = Math.floor(viewport.height) + 'px';
+    // Double-buffering: render onto offscreen canvas first to eliminate blank strobe
+    const offscreen = document.createElement('canvas');
+    offscreen.width = Math.floor(viewport.width * dpr);
+    offscreen.height = Math.floor(viewport.height * dpr);
+    const offCtx = offscreen.getContext('2d');
+    offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const ctx = slideCanvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    currentRenderTask = page.render({ canvasContext: ctx, viewport });
+    currentRenderTask = page.render({ canvasContext: offCtx, viewport });
     await currentRenderTask.promise;
     currentRenderTask = null;
+
+    // Seamlessly swap in one frame
+    slideCanvas.width = offscreen.width;
+    slideCanvas.height = offscreen.height;
+    slideCanvas.style.width = Math.floor(viewport.width) + 'px';
+    slideCanvas.style.height = Math.floor(viewport.height) + 'px';
+    const ctx = slideCanvas.getContext('2d');
+    ctx.drawImage(offscreen, 0, 0);
 
     currentPdfPage = num;
     if (slidePageNum) slidePageNum.textContent = String(num);
