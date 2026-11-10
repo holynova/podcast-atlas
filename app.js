@@ -42,9 +42,12 @@ async function filter(reset = true) {
   libraryStatus.textContent='正在查找单集…';
   try {
     await loadIndex(); if(token!==filterToken)return;
+    const hasQuery = Boolean(search?.value.trim());
+    await Promise.all([loadLibraryMeta(), hasQuery ? loadMetaShards() : Promise.resolve()]);
+    if(token!==filterToken)return;
     const list = searchEntries(entries,search?.value,show).filter(e=>e.ready);
     // Preserve the source's topic order for browsing; rank only actual searches.
-    if (!search?.value.trim()) list.sort((a,b)=>a.order-b.order);
+    if (!hasQuery) list.sort((a,b)=>a.order-b.order);
     const end = Math.min(libraryStart+libraryLimit,list.length);
     grid.replaceChildren(...list.slice(libraryStart,end).map(libraryCard));
     document.querySelector('#empty').hidden=list.length>0;
@@ -70,7 +73,7 @@ const query = dialog?.querySelector('#command-query');
 const results = dialog?.querySelector('#command-results');
 const status = dialog?.querySelector('#command-status');
 const retry = dialog?.querySelector('.command-retry');
-let entries = null, indexPromise = null, scope = 'all', active = -1, origin = null;
+let entries = null, indexPromise = null, libraryUrl = null, libraryPromise = null, metaPromise = null, scope = 'all', active = -1, origin = null;
 let matches = [], visibleLimit = 20, shards = [], bodyLoading = false;
 const bodyLoaded = new Set(), bodyFailed = new Set();
 let bodyTimer;
@@ -120,6 +123,81 @@ function render() {
   retry.hidden = !bodyFailed.size;
   setActive(selectedHref ? [...results.querySelectorAll('[role="option"]')].findIndex(option => option.href === selectedHref) : -1);
 }
+function inflateLiteEntries(data) {
+  if (Array.isArray(data.entries)) {
+    return { items: data.entries, shardList: data.shards || [], libUrl: null };
+  }
+  if (!Array.isArray(data.e)) throw new Error('Search unavailable');
+  const base = data.b || '';
+  const items = data.e.map((x, order) => ({
+    id: x[0],
+    title: x[1],
+    original_title: x[2],
+    show: x[3],
+    topic: x[4],
+    date: x[5],
+    ready: Boolean(x[6]),
+    slides: Boolean(x[7]),
+    available: Boolean(x[8]),
+    order,
+    url: base + (x[9] || `/episodes/${x[0]}/`),
+    text: '',
+    summary: '',
+    image: null
+  }));
+  return { items, shardList: data.s || [], libUrl: data.l || null };
+}
+function applyShardPayload(byId, payload) {
+  for (const [id, val] of Object.entries(payload)) {
+    const entry = byId.get(id);
+    if (!entry) continue;
+    if (Array.isArray(val)) {
+      if (val[0]) entry.summary = val[0];
+      if (val[1] && !entry._metaLoaded) {
+        entry.text = val[1] + (entry.text ? ' ' + entry.text : '');
+        entry._metaLoaded = true;
+      }
+    } else if (typeof val === 'string') {
+      entry.text += (entry.text ? ' ' : '') + val;
+    }
+  }
+}
+async function loadLibraryMeta() {
+  if (!libraryUrl) return;
+  if (!libraryPromise) {
+    libraryPromise = fetch(libraryUrl).then(r => {
+      if (!r.ok) throw new Error('Library unavailable');
+      return r.json();
+    }).then(data => {
+      const byId = new Map((entries || []).map(e => [e.id, e]));
+      for (const [id, row] of Object.entries(data.i || {})) {
+        const entry = byId.get(id);
+        if (!entry) continue;
+        if (row[0]) entry.summary = row[0];
+        if (Array.isArray(row[1])) {
+          const [width, height, vars] = row[1];
+          entry.image = { width, height, variants: vars.map(([w, hash]) => ({ width: w, url: `/static/${hash}.webp` })) };
+        }
+      }
+    }).catch(err => { libraryPromise = null; throw err; });
+  }
+  return libraryPromise;
+}
+async function loadMetaShards() {
+  const todo = shards.filter(s => s.k === 'm' && !bodyLoaded.has(s.url));
+  if (!todo.length) return;
+  if (!metaPromise) {
+    const byId = new Map((entries || []).map(e => [e.id, e]));
+    metaPromise = Promise.all(todo.map(shard => fetch(shard.url).then(r => {
+      if (!r.ok) throw new Error('Search unavailable');
+      return r.json();
+    }).then(payload => {
+      applyShardPayload(byId, payload);
+      bodyLoaded.add(shard.url);
+    }))).catch(err => { metaPromise = null; throw err; });
+  }
+  return metaPromise;
+}
 async function loadIndex() {
   if (!indexPromise) {
     const controller = new AbortController();
@@ -128,8 +206,10 @@ async function loadIndex() {
       if (!r.ok) throw new Error('Search unavailable');
       return r.json();
     }).then(data => {
-      if (!Array.isArray(data.entries)) throw new Error('Search unavailable');
-      entries = data.entries; shards = data.shards || [];
+      const inflated = inflateLiteEntries(data);
+      entries = inflated.items;
+      shards = inflated.shardList;
+      libraryUrl = inflated.libUrl;
     }).catch(error => {indexPromise = null; throw error;}).finally(() => clearTimeout(timer));
   }
   if (dialog.open) {retry.hidden = true; status.textContent = '正在加载搜索目录…';}
@@ -201,7 +281,7 @@ async function loadBodies() {
       try {
         const response=await fetch(shard.url,{signal:controller.signal});if(!response.ok)throw Error('Search unavailable');
         const bodies=await response.json();
-        for(const [id,text] of Object.entries(bodies)){const entry=byId.get(id);if(entry&&typeof text==='string')entry.text+=' '+text;}
+        applyShardPayload(byId, bodies);
         bodyLoaded.add(shard.url);
       } catch {bodyFailed.add(shard.url);} finally {clearTimeout(timer);}
       if(dialog.open)render();
@@ -291,24 +371,80 @@ const slideReplayBtn = slideViewer?.querySelector('#slide-replay-btn');
 let currentPdfDoc = null;
 let currentSlidePages = null;
 const slideImgCache = new Map();
+let slideRenderToken = 0;
 let currentPdfPage = 1;
 let totalPdfPages = 0;
 let isRendering = false;
 let pendingPage = null;
 let currentRenderTask = null;
+let catalogData = null;
 let currentSlideMeta = {
+  id: '',
   url: '',
   title: '',
   prevSlides: '',
+  prevId: '',
+  prevPrefix: '',
+  prevCount: '',
   prevTitle: '',
   nextSlides: '',
+  nextId: '',
+  nextPrefix: '',
+  nextCount: '',
   nextTitle: ''
 };
 
+function slidesListFromMeta(meta) {
+  if (Array.isArray(meta.slidePages) && meta.slidePages.length) return meta.slidePages;
+  const count = Number(meta.slideCount || 0);
+  if (meta.slidePrefix && count > 0) {
+    const prefix = meta.slidePrefix.endsWith('/') ? meta.slidePrefix : meta.slidePrefix + '/';
+    return Array.from({ length: count }, (_, i) => `${prefix}${i + 1}.webp`);
+  }
+  return null;
+}
+
+function pdfBasePrefix() {
+  const baseEl = document.querySelector('#command-search');
+  return (new URL(baseEl?.dataset.searchIndex || location.href, location.href).pathname.split('/static/')[0] || '').replace(/\/+$/, '');
+}
+
+function neighborDecksFromCatalog(eid) {
+  if (!catalogData || !eid) return null;
+  const groups = catalogData.groups || [];
+  let topicSlideEps = null;
+  const allSlideEps = [];
+  for (const g of groups) {
+    const eps = (g.eps || []).filter(ep => ep.p);
+    if (eps.some(ep => ep.id === eid)) topicSlideEps = eps;
+    allSlideEps.push(...eps);
+  }
+  const base = pdfBasePrefix();
+  const findPrevNext = (list, targetId) => {
+    const idx = list.findIndex(x => x.id === targetId);
+    return {
+      prev: idx > 0 ? list[idx - 1] : null,
+      next: idx >= 0 && idx + 1 < list.length ? list[idx + 1] : null
+    };
+  };
+  const topicRel = topicSlideEps ? findPrevNext(topicSlideEps, eid) : { prev: null, next: null };
+  const globalRel = findPrevNext(allSlideEps, eid);
+  const pack = (ep) => ep ? {
+    id: ep.id,
+    url: `${base}/assets/slides/${ep.id}.pdf`,
+    prefix: ep.sp || '',
+    count: String(ep.sc || ''),
+    title: ep.h || ''
+  } : { id: '', url: '', prefix: '', count: '', title: '' };
+  return {
+    prev: pack(topicRel.prev || globalRel.prev),
+    next: pack(topicRel.next || globalRel.next)
+  };
+}
+
 async function getPdfjs() {
   if (window.pdfjsLib) return window.pdfjsLib;
-  const baseEl = document.querySelector('#command-search');
-  const base = (new URL(baseEl?.dataset.searchIndex || location.href, location.href).pathname.split('/static/')[0] || '').replace(/\/+$/, '');
+  const base = pdfBasePrefix();
   const lib = await import(base + '/vendor/pdf.min.mjs');
   lib.GlobalWorkerOptions.workerSrc = base + '/vendor/pdf.worker.min.mjs';
   window.pdfjsLib = lib;
@@ -341,25 +477,61 @@ function hideEndCard() {
   if (slideEndCard) slideEndCard.hidden = true;
 }
 
-slideJumpNext?.addEventListener('click', () => {
-  if (currentSlideMeta.nextSlides) {
-    openSlideViewer(currentSlideMeta.nextSlides, currentSlideMeta.nextTitle);
+function jumpDeck(direction) {
+  const isNext = direction === 'next';
+  const url = isNext ? currentSlideMeta.nextSlides : currentSlideMeta.prevSlides;
+  if (!url) return;
+  const targetId = isNext ? currentSlideMeta.nextId : currentSlideMeta.prevId;
+  const prefix = isNext ? currentSlideMeta.nextPrefix : currentSlideMeta.prevPrefix;
+  const count = isNext ? currentSlideMeta.nextCount : currentSlideMeta.prevCount;
+  const title = isNext ? currentSlideMeta.nextTitle : currentSlideMeta.prevTitle;
+  const neighbors = neighborDecksFromCatalog(targetId);
+  openSlideViewer(url, title, {
+    slideId: targetId,
+    slidePrefix: prefix,
+    slideCount: count,
+    prevSlides: neighbors?.prev.url || '',
+    prevId: neighbors?.prev.id || '',
+    prevPrefix: neighbors?.prev.prefix || '',
+    prevCount: neighbors?.prev.count || '',
+    prevTitle: neighbors?.prev.title || '',
+    nextSlides: neighbors?.next.url || '',
+    nextId: neighbors?.next.id || '',
+    nextPrefix: neighbors?.next.prefix || '',
+    nextCount: neighbors?.next.count || '',
+    nextTitle: neighbors?.next.title || ''
+  });
+  if (!neighbors && targetId) {
+    fetchCatalogData().then(() => {
+      if (currentSlideMeta.id !== targetId) return;
+      const resolved = neighborDecksFromCatalog(targetId);
+      if (!resolved) return;
+      currentSlideMeta.prevSlides = resolved.prev.url;
+      currentSlideMeta.prevId = resolved.prev.id;
+      currentSlideMeta.prevPrefix = resolved.prev.prefix;
+      currentSlideMeta.prevCount = resolved.prev.count;
+      currentSlideMeta.prevTitle = resolved.prev.title;
+      currentSlideMeta.nextSlides = resolved.next.url;
+      currentSlideMeta.nextId = resolved.next.id;
+      currentSlideMeta.nextPrefix = resolved.next.prefix;
+      currentSlideMeta.nextCount = resolved.next.count;
+      currentSlideMeta.nextTitle = resolved.next.title;
+      if (slideEndCard && !slideEndCard.hidden) showEndCard();
+    }).catch(() => {});
   }
-});
-slideJumpPrev?.addEventListener('click', () => {
-  if (currentSlideMeta.prevSlides) {
-    openSlideViewer(currentSlideMeta.prevSlides, currentSlideMeta.prevTitle);
-  }
-});
+}
+
+slideJumpNext?.addEventListener('click', () => jumpDeck('next'));
+slideJumpPrev?.addEventListener('click', () => jumpDeck('prev'));
 slideReplayBtn?.addEventListener('click', () => {
   hideEndCard();
   renderSlidePage(1);
 });
 
-function preloadSlideImg(pageNum) {
-  if (!currentSlidePages || pageNum < 1 || pageNum > currentSlidePages.length) return Promise.resolve();
-  const url = currentSlidePages[pageNum - 1];
+function preloadSlideUrl(url) {
+  if (!url) return Promise.resolve();
   if (slideImgCache.has(url)) return slideImgCache.get(url);
+  if (slideImgCache.size >= 45) slideImgCache.delete(slideImgCache.keys().next().value);
   const im = new Image();
   im.decoding = 'async';
   im.src = url;
@@ -368,8 +540,14 @@ function preloadSlideImg(pageNum) {
   return p;
 }
 
+function preloadSlideImg(pageNum) {
+  if (!currentSlidePages || pageNum < 1 || pageNum > currentSlidePages.length) return Promise.resolve();
+  return preloadSlideUrl(currentSlidePages[pageNum - 1]);
+}
+
 async function openSlideViewer(pdfUrl, title, meta = {}) {
   if (!slideViewer) return;
+  slideRenderToken++;
   slideViewer.showModal();
   if (slideTitle) slideTitle.textContent = title || '漫画幻灯片';
   if (slideDownloadBtn) slideDownloadBtn.href = pdfUrl;
@@ -381,16 +559,22 @@ async function openSlideViewer(pdfUrl, title, meta = {}) {
   if (slidePageCount) slidePageCount.textContent = '-';
   hideEndCard();
 
+  currentSlidePages = slidesListFromMeta(meta);
   currentSlideMeta = {
+    id: meta.slideId || '',
     url: pdfUrl,
     title: title || '漫画幻灯片',
     prevSlides: meta.prevSlides || '',
+    prevId: meta.prevId || '',
+    prevPrefix: meta.prevPrefix || '',
+    prevCount: meta.prevCount || '',
     prevTitle: meta.prevTitle || '',
     nextSlides: meta.nextSlides || '',
-    nextTitle: meta.nextTitle || '',
-    slidePages: meta.slidePages || null
+    nextId: meta.nextId || '',
+    nextPrefix: meta.nextPrefix || '',
+    nextCount: meta.nextCount || '',
+    nextTitle: meta.nextTitle || ''
   };
-  currentSlidePages = Array.isArray(meta.slidePages) && meta.slidePages.length ? meta.slidePages : null;
 
   if (currentSlidePages && slideImg) {
     currentPdfDoc = null;
@@ -424,9 +608,11 @@ async function openSlideViewer(pdfUrl, title, meta = {}) {
 
 async function renderSlidePage(num) {
   if (currentSlidePages && slideImg) {
+    const token = ++slideRenderToken;
     const idx = Math.max(1, Math.min(num, currentSlidePages.length));
     const url = currentSlidePages[idx - 1];
     await preloadSlideImg(idx);
+    if (token !== slideRenderToken || !slideViewer?.open) return;
     slideImg.src = url;
     currentPdfPage = idx;
     if (slidePageNum) slidePageNum.textContent = String(idx);
@@ -706,21 +892,33 @@ function buildCatalogDom(data) {
   catalogBuilt = true;
 }
 
-function loadCatalog() {
-  if (catalogBuilt) return Promise.resolve();
+function fetchCatalogData() {
+  if (catalogData) return Promise.resolve(catalogData);
   if (!catalogPromise) {
     const url = catalogDialog?.dataset.catalogUrl;
-    if (!url) return Promise.resolve();
+    if (!url) return Promise.resolve(null);
     catalogPromise = fetch(url)
       .then(r => { if (!r.ok) throw new Error('Catalog unavailable'); return r.json(); })
-      .then(data => buildCatalogDom(data))
+      .then(data => {
+        catalogData = data;
+        return data;
+      })
       .catch(err => {
         catalogPromise = null;
-        if (catalogBody) catalogBody.replaceChildren(element('p', '目录加载失败，请刷新重试。', 'catalog-status'));
         throw err;
       });
   }
   return catalogPromise;
+}
+
+function loadCatalog() {
+  if (catalogBuilt) return Promise.resolve();
+  return fetchCatalogData()
+    .then(data => { if (data) buildCatalogDom(data); })
+    .catch(err => {
+      if (catalogBody) catalogBody.replaceChildren(element('p', '目录加载失败，请刷新重试。', 'catalog-status'));
+      throw err;
+    });
 }
 
 async function openCatalog() {
@@ -784,6 +982,21 @@ document.querySelectorAll('[data-open-catalog]').forEach(btn => {
   btn.addEventListener('focus', () => { loadCatalog().catch(() => {}); }, { once: true });
 });
 
+document.querySelectorAll('[data-open-slides]').forEach(btn => {
+  const warmSlide = () => {
+    const p = btn.dataset.slidePrefix;
+    if (p && Number(btn.dataset.slideCount) > 0) preloadSlideUrl((p.endsWith('/') ? p : p + '/') + '1.webp');
+  };
+  btn.addEventListener('pointerenter', warmSlide, { once: true });
+  btn.addEventListener('focus', warmSlide, { once: true });
+});
+
+[search, libraryMore, ...document.querySelectorAll('[data-filter]')].filter(Boolean).forEach(el => {
+  const warmLibrary = () => { loadIndex().then(() => loadLibraryMeta()).catch(() => {}); };
+  el.addEventListener('pointerenter', warmLibrary, { once: true });
+  el.addEventListener('focus', warmLibrary, { once: true });
+});
+
 // Progressive sticky PPT button reveal once hero button scrolls out of view
 const heroActionsEl = document.querySelector('.article-intro .hero-actions');
 const tocEl = document.querySelector('.toc');
@@ -838,9 +1051,18 @@ document.addEventListener('click', event => {
       try { slidePages = JSON.parse(btn.dataset.slidePages); } catch {}
     }
     openSlideViewer(btn.dataset.openSlides, btn.dataset.title, {
+      slideId: btn.dataset.slideId,
+      slidePrefix: btn.dataset.slidePrefix,
+      slideCount: btn.dataset.slideCount,
       prevSlides: btn.dataset.prevSlides,
+      prevId: btn.dataset.prevSlideId,
+      prevPrefix: btn.dataset.prevSlidePrefix,
+      prevCount: btn.dataset.prevSlideCount,
       prevTitle: btn.dataset.prevTitle,
       nextSlides: btn.dataset.nextSlides,
+      nextId: btn.dataset.nextSlideId,
+      nextPrefix: btn.dataset.nextSlidePrefix,
+      nextCount: btn.dataset.nextSlideCount,
       nextTitle: btn.dataset.nextTitle,
       slidePages
     });
