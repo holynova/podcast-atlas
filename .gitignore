@@ -11,3 +11,4 @@ state/progress.json.tmp
 .impeccable/
 state/accounts/
 state/cycle.lock
+handoff.md

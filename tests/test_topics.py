@@ -33,7 +33,8 @@ class TopicTests(unittest.TestCase):
         with patch.object(b,'QUEUE',rows),patch.object(b,'TOPICS',['同名专题']),patch.object(b,'TOPIC_GROUPS',[('半拿铁','同名专题'),('知行小酒馆','同名专题')]),patch.object(b,'ARTICLES',{}):
             self.assertNotEqual(b.topic_url('同名专题','半拿铁'),b.topic_url('同名专题','知行小酒馆'))
             page=b.topic_page('同名专题','半拿铁')
-            self.assertIn('半拿铁独有故事',page);self.assertNotIn('小酒馆独有故事',page)
+            main=page.split('<main id="main">')[1].split('</main>')[0]
+            self.assertIn('半拿铁独有故事',main);self.assertNotIn('小酒馆独有故事',main)
             legacy=b.topic_page('同名专题')
             self.assertIn('/shows/bannatie/',legacy);self.assertIn('/shows/zhixing/',legacy)
 
