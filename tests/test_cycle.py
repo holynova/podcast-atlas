@@ -117,3 +117,33 @@ class CycleTests(unittest.TestCase):
             (Path(d)/'content/chronic.json').write_text('{}')
             result=c.plan(main,items,'slot',1,1)
         self.assertEqual(result['slide_ids'],['fresh'])
+
+    def test_single_episode_source_error_does_not_block_remaining_candidates(self):
+        items=[{'id':'a'},{'id':'b'}]
+        job={'episodes':{'a':{},'b':{'notebook_id':'nb','source_id':'src-b'}},'notebooks':{}}
+        state={'key':'slot','slide_ids':['a','b'],'attempted_slide_ids':[],'submitted_slide_ids':[],'attempted_source_ids':[],'slide_limit':5}
+        started=[]
+        def prep(j,ep):
+            if ep['id']=='a':raise RuntimeError('SSL EOF')
+        def start(j,ep,artifacts):
+            started.append(ep['id'])
+            j['episodes'][ep['id']]['slide_status']='queued'
+        with tempfile.TemporaryDirectory() as d,patch.object(p,'ROOT',Path(d)),patch.object(c,'configure',return_value=job),patch.object(c,'read',return_value={'episodes':{'a':{},'b':{}}}),patch.object(c.b,'IDS',[]),patch.object(p,'generation_gate'),patch.object(p,'prepare_source',side_effect=prep),patch.object(p,'notebook_check_due',return_value=True),patch.object(p,'get_artifacts',return_value=[]),patch.object(p,'start_slides',side_effect=start),patch.object(p,'mark_error') as mark_err,patch.object(p,'paced_sleep'),patch.object(c,'save_cycle'),patch.object(c,'sync'):
+            c.submit('default',items,state,set(),{},time.monotonic()+10)
+        mark_err.assert_called_once()
+        self.assertEqual(started,['b'])
+        self.assertEqual(state['submitted_slide_ids'],['b'])
+
+    def test_account_cooldown_stops_remaining_candidates(self):
+        items=[{'id':'a'},{'id':'b'}]
+        future=(dt.datetime.now(p.TZ)+dt.timedelta(hours=1)).isoformat(timespec='seconds')
+        job={'episodes':{'a':{'notebook_id':'nb','source_id':'src-a'},'b':{'notebook_id':'nb','source_id':'src-b'}},'notebooks':{}}
+        state={'key':'slot','slide_ids':['a','b'],'attempted_slide_ids':[],'submitted_slide_ids':[],'slide_limit':5}
+        started=[]
+        def start(j,ep,artifacts):
+            started.append(ep['id'])
+            j['generation_cooldown_until']=future
+            raise RuntimeError('429 rate limited')
+        with tempfile.TemporaryDirectory() as d,patch.object(p,'ROOT',Path(d)),patch.object(c,'configure',return_value=job),patch.object(c,'read',return_value={'episodes':{'a':{},'b':{}}}),patch.object(c.b,'IDS',[]),patch.object(p,'generation_gate'),patch.object(p,'prepare_source'),patch.object(p,'notebook_check_due',return_value=True),patch.object(p,'get_artifacts',return_value=[]),patch.object(p,'start_slides',side_effect=start),patch.object(p,'mark_error'),patch.object(c,'save_cycle'),patch.object(c,'sync'):
+            c.submit('default',items,state,set(),{},time.monotonic()+10)
+        self.assertEqual(started,['a'])

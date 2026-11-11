@@ -182,6 +182,7 @@ def submit(profile,items,cycle,checked,caches,deadline):
         eid=ep['id'];r=job['episodes'][eid]
         if time.monotonic()>=deadline:return
         if (p.ROOT/'assets/slides'/(eid+'.pdf')).exists() or r.get('slide_status') in ['queued','submitting']:continue
+        if eid in cycle.get('attempted_source_ids',[]) and not r.get('source_id'):continue
         if not all(p.remaining_attempts(r,k) for k in ['source','slides','download']):continue
         stage='source'
         try:
@@ -215,8 +216,15 @@ def submit(profile,items,cycle,checked,caches,deadline):
                 p.paced_sleep(p.CONFIG.get('generation_interval_seconds',60))
             else:
                 return
-        except p.GenerationDeferred as error:print('DEFERRED',profile,str(error),flush=True);sync(job,profile);save_cycle(cycle);return
-        except Exception as error:p.mark_error(job,eid,stage,error);sync(job,profile);save_cycle(cycle);return
+        except p.GenerationDeferred as error:
+            print('DEFERRED',profile,str(error),flush=True);sync(job,profile);save_cycle(cycle)
+            if str(error).startswith('Episode ') or 'already attempted this cycle' in str(error):continue
+            return
+        except Exception as error:
+            p.mark_error(job,eid,stage,error);sync(job,profile);save_cycle(cycle)
+            until=job.get('generation_cooldown_until')
+            if until and dt.datetime.fromisoformat(until)>dt.datetime.now(p.TZ):return
+            continue
 
 def can_continue(cycle,main,second,deadline):
     for profile,job in [('default',main),('account-b',second)]:
