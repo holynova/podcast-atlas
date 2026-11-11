@@ -102,3 +102,18 @@ class CycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d,patch.object(p,'ROOT',Path(d)),patch.object(c,'configure',return_value=job),patch.object(c,'read',return_value={'episodes':{'a':{}}}),patch.object(c.b,'IDS',[]),patch.object(p,'generation_gate'),patch.object(p,'prepare_source'),patch.object(p,'notebook_check_due',return_value=True),patch.object(p,'get_artifacts',return_value=[]),patch.object(p,'start_slides',side_effect=timeout),patch.object(p,'mark_error'),patch.object(c,'save_cycle'),patch.object(c,'sync'):
             c.submit('default',[ep],state,set(),{},time.monotonic()+10)
         self.assertFalse(c.can_submit(state,'a'))
+
+    def test_chronic_slide_failures_yield_slots_to_fresh_episodes(self):
+        main={'episodes':{
+            'chronic':{'failed_artifact_ids':['1','2','3','4','5']},
+            'fresh':{'failed_artifact_ids':[]},
+        }}
+        items=[
+            {'id':'chronic','available':True,'show':'半拿铁','topic':'单集精选','rank':100,'order':1,'date':'2026-01-02'},
+            {'id':'fresh','available':True,'show':'半拿铁','topic':'单集精选','rank':100,'order':2,'date':'2026-01-01'},
+        ]
+        with tempfile.TemporaryDirectory() as d,patch.object(p,'ROOT',Path(d)),patch.object(c.b,'IDS',[]):
+            (Path(d)/'content').mkdir()
+            (Path(d)/'content/chronic.json').write_text('{}')
+            result=c.plan(main,items,'slot',1,1)
+        self.assertEqual(result['slide_ids'],['fresh'])

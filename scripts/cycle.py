@@ -36,7 +36,8 @@ def configure(profile):
     main=read(MAIN)
     job=main if profile=='default' else read(p.STATE_FILE)
     if profile=='account-b':
-        for eid in b.IDS:
+        assigned=list(b.IDS)+[eid for eid,primary in main['episodes'].items() if primary.get('delegated_profile')=='account-b' and eid not in b.IDS]
+        for eid in assigned:
             primary=main['episodes'][eid]
             r=job['episodes'].setdefault(eid,{'title':primary['title'],'status':'pending'})
             if primary.get('status')=='complete' and primary.get('profile')!='account-b':
@@ -78,12 +79,17 @@ def stage_eligible(ep,main,stages):
     if r.get('attempts_date',today)!=today:return True
     return all(p.remaining_attempts(r,stage) for stage in stages)
 
+def fail_count(ep,main):
+    rec=main.get('episodes',{}).get(ep['id'],{})
+    if owner(ep['id'],main)=='account-b':rec=rec.get('alternate_runs',{}).get('account-b',{})
+    return len(rec.get('failed_artifact_ids',[]))
+
 def plan(main,items,key,slide_limit,article_limit):
     if key in main.get('cycles',{}):return copy.deepcopy(main['cycles'][key])
     available=[ep for ep in items if ep['available']]
     slide_candidates=[ep for ep in available if not (p.ROOT/'assets/slides'/(ep['id']+'.pdf')).exists() and stage_eligible(ep,main,['source','slides','download'])]
-    # Ready text can get its missing visuals first; series order is retained within each group.
-    slide_candidates.sort(key=lambda ep:not (p.ROOT/'content'/(ep['id']+'.json')).exists())
+    # Ready text goes first while keeping chronic repeat-failures (>= 5) from starving fresh episodes.
+    slide_candidates.sort(key=lambda ep:(fail_count(ep,main)>=5,not (p.ROOT/'content'/(ep['id']+'.json')).exists()))
     article_candidates=[ep for ep in available if not (p.ROOT/'content'/(ep['id']+'.json')).exists() and stage_eligible(ep,main,['source','article'])]
     return {'key':key,'started_at':p.now(),'slide_limit':slide_limit,
             'slide_ids':balanced(slide_candidates,main,slide_limit),

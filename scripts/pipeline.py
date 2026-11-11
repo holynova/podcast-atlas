@@ -59,6 +59,31 @@ def catalog():
                         'available': x['status'] == 'success' and text.is_file() and raw.is_file(),
                         'text_path': str(text), 'json_path': str(raw), 'duration': x.get('duration', 0)})
     out.sort(key=lambda x: (x['rank'], 0 if x['rank'] == 2 and x['show'] == '半拿铁' else 1 if x['rank'] == 2 else 0, x['order'] if x['rank'] < 100 else -dt.date.fromisoformat(x['date']).toordinal(), x['id']))
+    existing_groups = {}
+    qpath = ROOT / 'state/queue.json'
+    if qpath.is_file():
+        try:
+            existing_groups = {ep['id']: ep['standalone_group'] for ep in json.loads(qpath.read_text()) if 'standalone_group' in ep}
+        except Exception:
+            existing_groups = {}
+    max_group = {}
+    group_fill = {}
+    for ep in out:
+        if ep['rank'] == 100 and ep['id'] in existing_groups:
+            g = existing_groups[ep['id']]
+            ep['standalone_group'] = g
+            show = ep['show']
+            max_group[show] = max(max_group.get(show, 1), g)
+            group_fill[(show, g)] = group_fill.get((show, g), 0) + 1
+    for ep in out:
+        if ep['rank'] == 100 and 'standalone_group' not in ep:
+            show = ep['show']
+            g = max_group.get(show, 1)
+            if group_fill.get((show, g), 0) >= 50:
+                g += 1
+                max_group[show] = g
+            ep['standalone_group'] = g
+            group_fill[(show, g)] = group_fill.get((show, g), 0) + 1
     return out
 
 class GenerationFailed(RuntimeError):
