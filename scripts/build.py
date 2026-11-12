@@ -23,6 +23,7 @@ TOPICS = list(dict.fromkeys(ep['topic'] for ep in QUEUE))
 SHOWS = {'半拿铁':'bannatie', '知行小酒馆':'zhixing'}
 TOPIC_GROUPS = list(dict.fromkeys((ep['show'],ep['topic']) for ep in QUEUE))
 PPT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'
+BENTO_ARROW_SVG = '<svg class="bento-arrow" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8h9"/><path d="M8.5 4l4 4-4 4"/></svg>'
 
 def shell(title, body, description='把播客里的长故事，变成看得懂的图文。半拿铁与知行小酒馆的中文图解知识库。', home=False, current_eid=None, head_extra=''):
     style_tag = f'<style>{INLINE_CSS}</style>' if INLINE_CSS else '<link rel="stylesheet" href="/style.css">'
@@ -110,15 +111,24 @@ def show_series(show, limit=None):
 
 def article_url(eid): return '/episodes/' + eid + '/'
 def clean_title(t): return __import__('re').sub(r'^No\.\d+\s*[^\u4e00-\u9fffA-Za-z「《]*', '', t).split(' | ')[0]
-def cover(ep, priority=False):
+def _render_cover_img(ep, alt, priority=False, sizes=None, eager=False):
+    """Render responsive cover <img> from prebuilt thumbnails or raw illustration."""
     path = ROOT / 'assets/illustrations' / ep['id'] / '0.webp'
     image = COVERS.get(ep['id'])
+    load_mode = 'eager' if (priority or eager) else 'lazy'
     if image:
         variants = image['variants']
         srcset = ', '.join(CFG.get('base_path', '') + v['url'] + ' ' + str(v['width']) + 'w' for v in variants)
-        sizes = '(max-width: 650px) calc(100vw - 68px), (max-width: 1000px) 45vw, 520px' if priority else '(max-width: 650px) calc(100vw - 40px), (max-width: 1000px) 44vw, 360px'
-        return f'<img src="{variants[1 if len(variants)>1 else 0]["url"]}" srcset="{srcset}" sizes="{sizes}" alt="{E(clean_title(ep["title"]))}" loading="{"eager" if priority else "lazy"}" fetchpriority="{"high" if priority else "auto"}" decoding="async" width="{image["width"]}" height="{image["height"]}">'
-    if path.exists(): return f'<img src="/assets/illustrations/{ep["id"]}/0.webp" alt="{E(clean_title(ep["title"]))}：漫画幻灯片封面" loading="lazy" width="960" height="540">'
+        target_sizes = sizes or ('(max-width: 650px) calc(100vw - 68px), (max-width: 1000px) 45vw, 520px' if priority else '(max-width: 650px) calc(100vw - 40px), (max-width: 1000px) 44vw, 360px')
+        return f'<img src="{variants[1 if len(variants)>1 else 0]["url"]}" srcset="{srcset}" sizes="{target_sizes}" alt="{E(alt)}" loading="{load_mode}" fetchpriority="{"high" if priority else "auto"}" decoding="async" width="{image["width"]}" height="{image["height"]}">'
+    if path.exists():
+        return f'<img src="/assets/illustrations/{ep["id"]}/0.webp" alt="{E(alt)}" loading="{load_mode}" width="960" height="540">'
+    return ''
+
+def cover(ep, priority=False):
+    rendered = _render_cover_img(ep, clean_title(ep['title']), priority=priority)
+    if rendered:
+        return rendered
     return '<div class="cover-pending"><span>先读文字讲解</span><small>漫画幻灯片稍后补充</small></div>'
 
 def card(ep):
@@ -350,9 +360,138 @@ def topic_page(topic, show=None):
         rows+=f'<li class="topic-row" id="episode-{ep["id"]}" data-show="{E(show)}"><span class="series-no">{order_no:02d}</span><div><h2>{name}</h2><p>{E(ep["title"])} · {ep["date"]}</p></div><span class="status {"ready" if a else ""}">{status}</span></li>'
     return shell(show+' · '+topic,f'<section class="wrap topic-intro"><a class="breadcrumb" href="/topics/#{SHOWS[show]}">← {E(show)}的专题</a><div class="topic-meta"><span>{E(show)} / {n} 集已整理</span></div><h1>{E(topic)}</h1><p class="article-dek">先读文字讲解，漫画幻灯片逐步补齐。这里收录《{E(show)}》共 {len(eps)} 集（已整理 {n} 集）。</p><ol class="topic-episodes">{rows}</ol></section>')
 
+def _topic_summary(show, topic):
+    """Collect verified counts, date span, digest snippet, and cover episode for a topic."""
+    eps = [ep for ep in QUEUE if ep['show'] == show and ep['topic'] == topic]
+    ready_eps = [ep for ep in eps if ep['id'] in ARTICLES]
+    ppt_count = sum(1 for ep in eps if (ROOT / 'assets/slides' / (ep['id'] + '.pdf')).exists())
+    cover_ep = next(
+        (ep for ep in ready_eps + eps if ep['id'] in COVERS or (ROOT / 'assets/illustrations' / ep['id'] / '0.webp').exists()),
+        None,
+    )
+    dates = sorted(ep['date'] for ep in eps if ep.get('date'))
+    year_span = (
+        dates[0][:4] if dates and dates[0][:4] == dates[-1][:4]
+        else f'{dates[0][:4]}–{dates[-1][:4]}'
+    ) if dates else ''
+    short_names = []
+    for ep in ready_eps[:3]:
+        headline = ARTICLES[ep['id']]['headline']
+        seg = re.split(r'[：:，,？?]', headline)[0].strip()
+        if seg and seg not in short_names:
+            short_names.append(seg)
+    digest = ' · '.join(short_names[:3]) or '图文梳理进行中'
+    total = len(eps)
+    pct = round((len(ready_eps) / total) * 100) if total else 0
+    return {
+        'show': show,
+        'topic': topic,
+        'url': topic_url(topic, show),
+        'total': total,
+        'text_count': len(ready_eps),
+        'ppt_count': ppt_count,
+        'year_span': year_span,
+        'digest': digest,
+        'cover_ep': cover_ep,
+        'pct': pct,
+        'is_archive': topic == '单集精选',
+    }
+
+
+def _topic_thumb(ep, topic, hero=False):
+    if not ep:
+        return '<div class="bento-cover-empty">图文筹备中</div>' if hero else ''
+    sizes = '(max-width: 600px) calc(100vw - 72px), 204px' if hero else '84px'
+    return _render_cover_img(ep, topic, priority=hero, sizes=sizes, eager=True)
+
+
+def _bento_hero_card(d, extra_cls=''):
+    cls = f'bento-hero-card {extra_cls}'.strip()
+    return (
+        f'<a class="{cls}" href="{d["url"]}">'
+        f'{_topic_thumb(d["cover_ep"], d["topic"], hero=True)}'
+        f'<div class="bento-card-content">'
+        f'<div class="bento-title-row"><h3>{E(d["topic"])}</h3><span class="bento-count num"><b>{d["text_count"]}</b>/{d["total"]} 篇</span></div>'
+        f'<div class="bento-digest">{E(d["digest"])}</div>'
+        f'<div class="progress-track" aria-hidden="true"><div class="progress-fill" style="width:{d["pct"]}%"></div></div>'
+        f'<div class="bento-sub num"><span>{d["ppt_count"]} 套幻灯片 · {E(d["year_span"])}</span>{BENTO_ARROW_SVG}</div>'
+        f'</div></a>'
+    )
+
+
+def _bento_mid_card(d):
+    return (
+        f'<a class="bento-mid-card" href="{d["url"]}">'
+        f'<div class="bento-mid-top">{_topic_thumb(d["cover_ep"], d["topic"])}'
+        f'<div><h3>{E(d["topic"])}</h3><span class="num">{d["text_count"]}/{d["total"]} 篇 · {d["ppt_count"]} PPT</span></div></div>'
+        f'<div class="bento-digest">{E(d["digest"])}</div>'
+        f'<div class="progress-track" aria-hidden="true"><div class="progress-fill" style="width:{d["pct"]}%"></div></div>'
+        f'</a>'
+    )
+
+
+def _bento_short_chip(d):
+    return (
+        f'<a class="bento-chip" href="{d["url"]}">'
+        f'<div><strong>{E(d["topic"])}</strong>'
+        f'<small class="num">{d["text_count"]}/{d["total"]} 篇 · {d["ppt_count"]} PPT · {E(d["year_span"])}</small></div>'
+        f'{BENTO_ARROW_SVG}</a>'
+    )
+
+
+def _bento_stack_item(d):
+    return (
+        f'<a class="bento-stack-item" href="{d["url"]}">'
+        f'{_topic_thumb(d["cover_ep"], d["topic"])}'
+        f'<div class="bento-stack-copy"><h3>{E(d["topic"])}</h3><div class="bento-digest">{E(d["digest"])}</div></div>'
+        f'<div class="bento-stack-meta num"><div><b>{d["text_count"]}</b>/{d["total"]} 篇</div>'
+        f'<div>{d["ppt_count"]} PPT · {E(d["year_span"])}</div></div></a>'
+    )
+
+
 def all_topics():
-    groups=''.join(show_series(show) for show in SHOWS)
-    return shell('全部专题',f'<section class="wrap topic-intro"><a class="breadcrumb" href="/">← 首页</a><h1>先选一档播客，再沿专题读。</h1><p class="article-dek">半拿铁与知行小酒馆分别整理。同名专题也各有自己的目录。</p><nav class="show-jumps" aria-label="选择播客"><a href="#bannatie">半拿铁 ↓</a><a href="#zhixing">知行小酒馆 ↓</a></nav><div class="show-groups">{groups}</div></section>')
+    """Render /topics/ using the hierarchical Bento overview grouped by podcast."""
+    sections = []
+    all_summaries = []
+    for show in SHOWS:
+        topics = [topic for owner, topic in TOPIC_GROUPS if owner == show]
+        summaries = [_topic_summary(show, topic) for topic in topics]
+        all_summaries.extend(summaries)
+        archive_items = [d for d in summaries if d['is_archive']]
+        series_items = [d for d in summaries if not d['is_archive']]
+        if len(summaries) <= 4 and len(archive_items) == 1 and series_items:
+            grid_inner = (
+                _bento_hero_card(archive_items[0], extra_cls='bento-zhixing-archive')
+                + f'<div class="bento-zhixing-stack">{"".join(_bento_stack_item(d) for d in series_items)}</div>'
+            )
+        else:
+            hero_items = [d for d in summaries if d['is_archive'] or d['total'] >= 20]
+            mid_items = [d for d in summaries if d not in hero_items and d['total'] >= 5]
+            short_items = [d for d in summaries if d not in hero_items and d['total'] < 5]
+            grid_inner = (
+                ''.join(_bento_hero_card(d) for d in hero_items)
+                + ''.join(_bento_mid_card(d) for d in mid_items)
+                + (f'<div class="bento-chip-row">{"".join(_bento_short_chip(d) for d in short_items)}</div>' if short_items else '')
+            )
+        total_show_eps = sum(d['total'] for d in summaries)
+        sections.append(
+            f'<section class="bento-group" id="{SHOWS[show]}" aria-labelledby="show-{SHOWS[show]}">'
+            f'<div class="bento-group-title"><h2 id="show-{SHOWS[show]}">{E(show)}</h2>'
+            f'<span class="num">{len(summaries)} 个专题 · {total_show_eps} 集</span></div>'
+            f'<div class="bento-grid">{grid_inner}</div></section>'
+        )
+
+    total_topics = len(all_summaries)
+    total_ready = sum(d['text_count'] for d in all_summaries)
+    total_slides = sum(d['ppt_count'] for d in all_summaries)
+    body = (
+        f'<section class="wrap topics-bento">'
+        f'<div class="topics-bento-head">'
+        f'<div><a class="breadcrumb" href="/">← 首页</a><h1>播客专题地图</h1></div>'
+        f'<div class="bento-summary num"><b>{total_topics}</b> 个专题 · <b>{total_ready}</b> / {len(QUEUE)} 篇图文 · <b>{total_slides}</b> 套幻灯片</div>'
+        f'</div>{"".join(sections)}</section>'
+    )
+    return shell('全部专题', body)
 
 def search_index(full=True):
     entries=[]

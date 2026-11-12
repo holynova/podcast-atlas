@@ -44,3 +44,17 @@ class TopicTests(unittest.TestCase):
         serialized=__import__('json').dumps(index,ensure_ascii=False)
         for forbidden in ['text_path','json_path','source_id','notebook_id','last_error','/Users/sym','逐字稿原文']:self.assertNotIn(forbidden,serialized)
         for row in index['entries']:self.assertTrue(row['url'].startswith('/podcast-atlas/'))
+
+    def test_all_topics_uses_hierarchical_bento_and_preserves_show_anchors(self):
+        page=b.all_topics()
+        main=page.split('<main id="main">')[1].split('</main>')[0]
+        self.assertIn('class="wrap topics-bento"',main)
+        self.assertIn('id="bannatie"',main)
+        self.assertIn('id="zhixing"',main)
+        self.assertIn('class="bento-hero-card"',main)
+        self.assertIn('class="bento-mid-card"',main)
+        self.assertIn('class="bento-chip-row"',main)
+        self.assertIn('class="bento-zhixing-stack"',main)
+        self.assertIn('/podcast-atlas/shows/bannatie/topics/',main)
+        self.assertIn('/podcast-atlas/shows/zhixing/topics/',main)
+        self.assertGreater(main.count('<img '),8)
