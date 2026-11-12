@@ -46,8 +46,8 @@ async function filter(reset = true) {
     await Promise.all([loadLibraryMeta(), hasQuery ? loadMetaShards() : Promise.resolve()]);
     if(token!==filterToken)return;
     const list = searchEntries(entries,search?.value,show).filter(e=>e.ready);
-    // Preserve the source's topic order for browsing; rank only actual searches.
-    if (!hasQuery) list.sort((a,b)=>a.order-b.order);
+    // Scheme A: Latest episodes first for browsing; rank only actual searches.
+    if (!hasQuery) list.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||a.order-b.order);
     const end = Math.min(libraryStart+libraryLimit,list.length);
     grid.replaceChildren(...list.slice(libraryStart,end).map(libraryCard));
     document.querySelector('#empty').hidden=list.length>0;

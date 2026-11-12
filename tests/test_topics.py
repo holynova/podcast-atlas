@@ -54,10 +54,10 @@ class TopicTests(unittest.TestCase):
         self.assertIn('class="bento-hero-card"',main)
         self.assertIn('class="bento-mid-card"',main)
         self.assertIn('class="bento-chip-row"',main)
-        self.assertIn('class="bento-zhixing-stack"',main)
+        self.assertIn('class="bento-archive-card"',main)
         self.assertIn('/podcast-atlas/shows/bannatie/topics/',main)
         self.assertIn('/podcast-atlas/shows/zhixing/topics/',main)
-        self.assertGreater(main.count('<img '),8)
+        self.assertGreater(main.count('<img '),6)
 
     def test_index_series_uses_hierarchical_bento_and_preserves_show_anchors(self):
         page=b.index()
@@ -68,7 +68,14 @@ class TopicTests(unittest.TestCase):
         self.assertIn('class="bento-hero-card"',series)
         self.assertIn('class="bento-mid-card"',series)
         self.assertIn('class="bento-chip-row"',series)
-        self.assertIn('class="bento-zhixing-stack"',series)
+        self.assertIn('class="bento-archive-card"',series)
         self.assertIn('<h3 id="show-bannatie">',series)
-        self.assertGreater(series.count('<img '),8)
+        self.assertGreater(series.count('<img '),6)
+
+    def test_index_library_sorts_by_date_descending_latest_first(self):
+        page=b.index()
+        library=page.split('<section id="library"')[1]
+        dates=__import__('re').findall(r'<time>(\d{4}-\d{2}-\d{2})</time>',library)
+        self.assertGreater(len(dates),10)
+        self.assertEqual(dates,sorted(dates,reverse=True))
 

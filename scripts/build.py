@@ -159,7 +159,7 @@ def index(page=1):
             head_extra = f'<link rel="preload" as="image" href="{fallback}" imagesrcset="{srcset}" imagesizes="{sizes}" fetchpriority="high">'
     else: hero_visual = ''
     series = ''.join(_bento_show_group(show, group_tag='h3', card_tag='h4')[0] for show in SHOWS)
-    ready = [ep for ep in QUEUE if ep['id'] in ARTICLES]
+    ready = sorted([ep for ep in QUEUE if ep['id'] in ARTICLES], key=lambda ep: (ep.get('date', ''), ep.get('order', 0), ep['id']), reverse=True)
     offset = (page - 1) * PAGE_SIZE
     cards = ''.join(card(ep) for ep in ready[offset:offset+PAGE_SIZE])
     next_url = '/library/' + str(page+1) + '/#library' if offset+PAGE_SIZE < len(ready) else '#library'
@@ -433,13 +433,17 @@ def _bento_short_chip(d):
     )
 
 
-def _bento_stack_item(d, card_tag='h3'):
+def _bento_archive_card(d, card_tag='h3'):
     return (
-        f'<a class="bento-stack-item" href="{d["url"]}">'
-        f'{_topic_thumb(d["cover_ep"], d["topic"])}'
-        f'<div class="bento-stack-copy"><{card_tag}>{E(d["topic"])}</{card_tag}><div class="bento-digest">{E(d["digest"])}</div></div>'
-        f'<div class="bento-stack-meta num"><div><b>{d["text_count"]}</b>/{d["total"]} 篇</div>'
-        f'<div>{d["ppt_count"]} PPT · {E(d["year_span"])}</div></div></a>'
+        f'<a class="bento-archive-card" href="{d["url"]}">'
+        f'<div class="bento-archive-copy">'
+        f'<{card_tag}>{E(d["topic"])} · 散篇收录</{card_tag}>'
+        f'<div class="bento-digest">{E(d["digest"])} 等 {d["total"]} 篇独立故事</div>'
+        f'</div>'
+        f'<div class="bento-archive-meta num">'
+        f'<span><b>{d["text_count"]}</b>/{d["total"]} 篇 · {d["ppt_count"]} PPT</span>'
+        f'{BENTO_ARROW}'
+        f'</div></a>'
     )
 
 
@@ -449,19 +453,23 @@ def _bento_show_group(show, group_tag='h2', card_tag='h3'):
     summaries = [_topic_summary(show, topic) for topic in topics]
     archive_items = [d for d in summaries if d['is_archive']]
     series_items = [d for d in summaries if not d['is_archive']]
-    if len(summaries) <= 4 and len(archive_items) == 1 and series_items:
+    archive_cards = ''.join(_bento_archive_card(d, card_tag=card_tag) for d in archive_items)
+
+    if len(series_items) <= 2:
         grid_inner = (
-            _bento_hero_card(archive_items[0], extra_cls='bento-zhixing-archive', card_tag=card_tag)
-            + f'<div class="bento-zhixing-stack">{"".join(_bento_stack_item(d, card_tag=card_tag) for d in series_items)}</div>'
+            ''.join(_bento_hero_card(d, card_tag=card_tag) for d in series_items)
+            + archive_cards
         )
     else:
-        hero_items = [d for d in summaries if d['is_archive'] or d['total'] >= 20]
-        mid_items = [d for d in summaries if d not in hero_items and d['total'] >= 5]
-        short_items = [d for d in summaries if d not in hero_items and d['total'] < 5]
+        hero_items = [d for d in series_items if d['total'] >= 20]
+        mid_items = [d for d in series_items if d not in hero_items and d['total'] >= 5]
+        short_items = [d for d in series_items if d not in hero_items and d['total'] < 5]
+        hero_cls = 'bento-hero-full' if len(hero_items) == 1 else ''
         grid_inner = (
-            ''.join(_bento_hero_card(d, card_tag=card_tag) for d in hero_items)
+            ''.join(_bento_hero_card(d, extra_cls=hero_cls, card_tag=card_tag) for d in hero_items)
             + ''.join(_bento_mid_card(d, card_tag=card_tag) for d in mid_items)
             + (f'<div class="bento-chip-row">{"".join(_bento_short_chip(d) for d in short_items)}</div>' if short_items else '')
+            + archive_cards
         )
     total_show_eps = sum(d['total'] for d in summaries)
     section_html = (

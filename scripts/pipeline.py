@@ -36,15 +36,14 @@ def catalog():
             title = x['title']; topic = '单集精选'; number = None; rank = 100
             rules = [(r'中国互联网故事\s*(\d+)', '中国互联网故事', 0),
                      (r'苹果简史\s*(\d+)', '苹果公司简史', 1),
-                     (r'中国股市', '中国股市往事', 2),
-                     (r'硅谷神话', '硅谷神话', 3),
-                     (r'芯片江湖', '芯片江湖', 4),
-                     (r'任天堂往事\s*[（(]?(\d+)', '任天堂往事', 5),
-                     (r'日漫史\s*(\d+)', '日本漫画史', 6),
-                     (r'中国饮料故事', '中国饮料故事', 7),
-                     (r'房产万事屋\s*(\d+)', '房产万事屋', 8),
-                     (r'我们和养老的距离\s*(\d+)', '我们和养老的距离', 9),
-                     (r'科龙往事', '科龙往事', 10)]
+                     (r'硅谷神话', '硅谷神话', 2),
+                     (r'芯片江湖', '芯片江湖', 3),
+                     (r'任天堂往事\s*[（(]?(\d+)', '任天堂往事', 4),
+                     (r'日漫史\s*(\d+)', '日本漫画史', 5),
+                     (r'中国饮料故事', '中国饮料故事', 6),
+                     (r'房产万事屋\s*(\d+)', '房产万事屋', 7),
+                     (r'我们和养老的距离\s*(\d+)', '我们和养老的距离', 8),
+                     (r'科龙往事', '科龙往事', 9)]
             for pattern, label, priority in rules:
                 m = re.search(pattern, title)
                 if m:
@@ -58,7 +57,7 @@ def catalog():
                         'url': x['url'], 'topic': topic, 'order': number, 'rank': rank,
                         'available': x['status'] == 'success' and text.is_file() and raw.is_file(),
                         'text_path': str(text), 'json_path': str(raw), 'duration': x.get('duration', 0)})
-    out.sort(key=lambda x: (x['rank'], 0 if x['rank'] == 2 and x['show'] == '半拿铁' else 1 if x['rank'] == 2 else 0, x['order'] if x['rank'] < 100 else -dt.date.fromisoformat(x['date']).toordinal(), x['id']))
+    out.sort(key=lambda x: (x['rank'], x['order'] if x['rank'] < 100 else -dt.date.fromisoformat(x['date']).toordinal(), x['id']))
     existing_groups = {}
     qpath = ROOT / 'state/queue.json'
     if qpath.is_file():

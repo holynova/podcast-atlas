@@ -408,30 +408,6 @@
     "duration": 9166
   },
   {
-    "id": "673342f643dc3a43870f8561",
-    "title": "No.125 📈 中国股市历史钩沉：从上交所到深交所",
-    "show": "半拿铁",
-    "date": "2024-11-13",
-    "url": "https://www.xiaoyuzhoufm.com/episode/673342f643dc3a43870f8561",
-    "topic": "中国股市往事",
-    "order": 125,
-    "rank": 2,
-    "available": true,
-    "duration": 7359
-  },
-  {
-    "id": "60ba1cd1ec97c268f87cb90b",
-    "title": "E14 孟岩：我希望降低中国股市波动，让更多人赚到钱｜串台 UX Coffee",
-    "show": "知行小酒馆",
-    "date": "2021-06-04",
-    "url": "https://www.xiaoyuzhoufm.com/episode/60ba1cd1ec97c268f87cb90b",
-    "topic": "中国股市往事",
-    "order": 14,
-    "rank": 2,
-    "available": true,
-    "duration": 3810
-  },
-  {
     "id": "6448e0597d934b8505fde61d",
     "title": "No.48 💻车库中诞生的惠普，二战中诞生的计算机｜硅谷神话①",
     "show": "半拿铁",
@@ -439,7 +415,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/6448e0597d934b8505fde61d",
     "topic": "硅谷神话",
     "order": 48,
-    "rank": 3,
+    "rank": 2,
     "available": true,
     "duration": 4999
   },
@@ -451,7 +427,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/645b66357d934b8505224a6c",
     "topic": "硅谷神话",
     "order": 50,
-    "rank": 3,
+    "rank": 2,
     "available": true,
     "duration": 5706
   },
@@ -463,7 +439,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/646e18831672628240f61825",
     "topic": "硅谷神话",
     "order": 52,
-    "rank": 3,
+    "rank": 2,
     "available": true,
     "duration": 8700
   },
@@ -475,7 +451,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/631176ea4337559012241011",
     "topic": "芯片江湖",
     "order": 18,
-    "rank": 4,
+    "rank": 3,
     "available": true,
     "duration": 6032
   },
@@ -487,7 +463,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/6346c76ae67030aadb38f4fd",
     "topic": "芯片江湖",
     "order": 22,
-    "rank": 4,
+    "rank": 3,
     "available": true,
     "duration": 4375
   },
@@ -499,7 +475,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/636274672e925d51c119478e",
     "topic": "芯片江湖",
     "order": 24,
-    "rank": 4,
+    "rank": 3,
     "available": true,
     "duration": 3989
   },
@@ -511,7 +487,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/63763dfe82c53e56505bff51",
     "topic": "芯片江湖",
     "order": 26,
-    "rank": 4,
+    "rank": 3,
     "available": true,
     "duration": 6286
   },
@@ -523,7 +499,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/62fcef9c589bc60fde1d8218",
     "topic": "任天堂往事",
     "order": 1,
-    "rank": 5,
+    "rank": 4,
     "available": true,
     "duration": 7799
   },
@@ -535,7 +511,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/6304aa883f74e21c5affb72f",
     "topic": "任天堂往事",
     "order": 2,
-    "rank": 5,
+    "rank": 4,
     "available": true,
     "duration": 6694
   },
@@ -547,7 +523,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/63199ab4e50e37575adb1ebc",
     "topic": "任天堂往事",
     "order": 3,
-    "rank": 5,
+    "rank": 4,
     "available": true,
     "duration": 7188
   },
@@ -559,7 +535,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/63282a9baafc5c394512df5e",
     "topic": "任天堂往事",
     "order": 4,
-    "rank": 5,
+    "rank": 4,
     "available": true,
     "duration": 6806
   },
@@ -571,7 +547,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/6331b49f2a992d56e91e50a8",
     "topic": "任天堂往事",
     "order": 5,
-    "rank": 5,
+    "rank": 4,
     "available": true,
     "duration": 6141
   },
@@ -583,7 +559,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/667bf851c13b46d76c0b7ac0",
     "topic": "日本漫画史",
     "order": 1,
-    "rank": 6,
+    "rank": 5,
     "available": true,
     "duration": 9170
   },
@@ -595,7 +571,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/669f2c2c8fcadceb90423de6",
     "topic": "日本漫画史",
     "order": 2,
-    "rank": 6,
+    "rank": 5,
     "available": true,
     "duration": 8957
   },
@@ -607,7 +583,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/66b3036ee0957daebd7b4365",
     "topic": "日本漫画史",
     "order": 3,
-    "rank": 6,
+    "rank": 5,
     "available": true,
     "duration": 9765
   },
@@ -619,7 +595,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/66d7f1c9d3fe96bde0b175e4",
     "topic": "日本漫画史",
     "order": 4,
-    "rank": 6,
+    "rank": 5,
     "available": true,
     "duration": 9531
   },
@@ -631,7 +607,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/66ea60b83a5ff0a0ca269e33",
     "topic": "日本漫画史",
     "order": 5,
-    "rank": 6,
+    "rank": 5,
     "available": true,
     "duration": 9593
   },
@@ -643,7 +619,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/670412dd6c7f8177865af177",
     "topic": "日本漫画史",
     "order": 6,
-    "rank": 6,
+    "rank": 5,
     "available": true,
     "duration": 11784
   },
@@ -655,7 +631,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/6718a4cbdb2cf82757560ba0",
     "topic": "日本漫画史",
     "order": 7,
-    "rank": 6,
+    "rank": 5,
     "available": true,
     "duration": 15971
   },
@@ -667,7 +643,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/62847d2a2597a3ddfb46d75b",
     "topic": "中国饮料故事",
     "order": 3,
-    "rank": 7,
+    "rank": 6,
     "available": true,
     "duration": 4771
   },
@@ -679,7 +655,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/628f72ec83ddae2d9e72ab7c",
     "topic": "中国饮料故事",
     "order": 4,
-    "rank": 7,
+    "rank": 6,
     "available": true,
     "duration": 6119
   },
@@ -691,7 +667,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/629f549d525536dd029364a2",
     "topic": "中国饮料故事",
     "order": 6,
-    "rank": 7,
+    "rank": 6,
     "available": true,
     "duration": 8582
   },
@@ -703,7 +679,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/62b411ff2af904c4f003142d",
     "topic": "中国饮料故事",
     "order": 8,
-    "rank": 7,
+    "rank": 6,
     "available": true,
     "duration": 7355
   },
@@ -715,7 +691,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/62c59f5c4b51051a317a4ccd",
     "topic": "中国饮料故事",
     "order": 10,
-    "rank": 7,
+    "rank": 6,
     "available": true,
     "duration": 8030
   },
@@ -727,7 +703,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/62d82571fa15142e17251daf",
     "topic": "中国饮料故事",
     "order": 12,
-    "rank": 7,
+    "rank": 6,
     "available": true,
     "duration": 8528
   },
@@ -739,7 +715,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/63f82a12a42b41bccb657cfa",
     "topic": "房产万事屋",
     "order": 1,
-    "rank": 8,
+    "rank": 7,
     "available": true,
     "duration": 4637
   },
@@ -751,7 +727,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/6482d78f53a5e5ea1446f109",
     "topic": "房产万事屋",
     "order": 2,
-    "rank": 8,
+    "rank": 7,
     "available": true,
     "duration": 5048
   },
@@ -763,7 +739,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/650d22859687557971f61bde",
     "topic": "房产万事屋",
     "order": 3,
-    "rank": 8,
+    "rank": 7,
     "available": true,
     "duration": 5378
   },
@@ -775,7 +751,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/65113aad19dde7bf6a7f1da7",
     "topic": "房产万事屋",
     "order": 3,
-    "rank": 8,
+    "rank": 7,
     "available": true,
     "duration": 3486
   },
@@ -787,7 +763,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/62f63ac0226f5c1fa0d586fe",
     "topic": "我们和养老的距离",
     "order": 1,
-    "rank": 9,
+    "rank": 8,
     "available": true,
     "duration": 3684
   },
@@ -799,7 +775,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/631aeb585a246f906ba2c4d8",
     "topic": "我们和养老的距离",
     "order": 2,
-    "rank": 9,
+    "rank": 8,
     "available": true,
     "duration": 4500
   },
@@ -811,7 +787,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/634903f22a992d56e91e5e6d",
     "topic": "我们和养老的距离",
     "order": 3,
-    "rank": 9,
+    "rank": 8,
     "available": true,
     "duration": 3400
   },
@@ -823,7 +799,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/636de2ca165a4944db4978df",
     "topic": "我们和养老的距离",
     "order": 4,
-    "rank": 9,
+    "rank": 8,
     "available": true,
     "duration": 3207
   },
@@ -835,7 +811,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/63898ee4882ce82fb645959a",
     "topic": "我们和养老的距离",
     "order": 5,
-    "rank": 9,
+    "rank": 8,
     "available": true,
     "duration": 3579
   },
@@ -847,7 +823,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/679cccf8d74435e4a388b04d",
     "topic": "科龙往事",
     "order": 136,
-    "rank": 10,
+    "rank": 9,
     "available": true,
     "duration": 7318
   },
@@ -859,7 +835,7 @@
     "url": "https://www.xiaoyuzhoufm.com/episode/67b35358606e5c594014d42a",
     "topic": "科龙往事",
     "order": 138,
-    "rank": 10,
+    "rank": 9,
     "available": true,
     "duration": 7465
   },
@@ -3033,6 +3009,19 @@
     "available": true,
     "duration": 5174,
     "standalone_group": 2
+  },
+  {
+    "id": "673342f643dc3a43870f8561",
+    "title": "No.125 📈 中国股市历史钩沉：从上交所到深交所",
+    "show": "半拿铁",
+    "date": "2024-11-13",
+    "url": "https://www.xiaoyuzhoufm.com/episode/673342f643dc3a43870f8561",
+    "topic": "单集精选",
+    "order": 125,
+    "rank": 100,
+    "available": true,
+    "duration": 7359,
+    "standalone_group": 4
   },
   {
     "id": "672daea641963c65b0ebaf99",
@@ -6387,6 +6376,19 @@
     "available": true,
     "duration": 1328,
     "standalone_group": 5
+  },
+  {
+    "id": "60ba1cd1ec97c268f87cb90b",
+    "title": "E14 孟岩：我希望降低中国股市波动，让更多人赚到钱｜串台 UX Coffee",
+    "show": "知行小酒馆",
+    "date": "2021-06-04",
+    "url": "https://www.xiaoyuzhoufm.com/episode/60ba1cd1ec97c268f87cb90b",
+    "topic": "单集精选",
+    "order": 14,
+    "rank": 100,
+    "available": true,
+    "duration": 3810,
+    "standalone_group": 6
   },
   {
     "id": "60b0dcd6e273a1e20b43dc1e",
