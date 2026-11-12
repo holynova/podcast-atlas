@@ -58,3 +58,17 @@ class TopicTests(unittest.TestCase):
         self.assertIn('/podcast-atlas/shows/bannatie/topics/',main)
         self.assertIn('/podcast-atlas/shows/zhixing/topics/',main)
         self.assertGreater(main.count('<img '),8)
+
+    def test_index_series_uses_hierarchical_bento_and_preserves_show_anchors(self):
+        page=b.index()
+        series=page.split('<section id="series"')[1].split('<section id="library"')[0]
+        self.assertIn('id="bannatie"',series)
+        self.assertIn('id="zhixing"',series)
+        self.assertIn('class="bento-group"',series)
+        self.assertIn('class="bento-hero-card"',series)
+        self.assertIn('class="bento-mid-card"',series)
+        self.assertIn('class="bento-chip-row"',series)
+        self.assertIn('class="bento-zhixing-stack"',series)
+        self.assertIn('<h3 id="show-bannatie">',series)
+        self.assertGreater(series.count('<img '),8)
+
