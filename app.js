@@ -32,7 +32,7 @@ function libraryCard(entry) {
   const title = element('h3'); const link = element('a', entry.title); link.href = entry.url; title.append(link);
   const bottom = element('div', undefined, 'card-bottom');
   if (entry.slides) bottom.append(element('span', 'PPT', 'card-tag ppt'));
-  copy.append(meta, title, element('p', entry.summary), bottom);
+  copy.append(meta, title, bottom);
   card.dataset.show = entry.show; card.append(cover, copy); return card;
 }
 async function filter(reset = true) {
@@ -89,9 +89,17 @@ function setActive(index) {
 }
 function render() {
   if (!entries) return;
-  const selectedHref = active >= 0 ? results.querySelector('[aria-selected="true"]')?.href : null;
-  matches = searchEntries(entries, query.value, scope);
+  const q = query.value.trim();
   results.replaceChildren();
+  const more = dialog.querySelector('[data-search-more]');
+  if (!q) {
+    if (more) more.hidden = true;
+    if (status) status.textContent = '';
+    active = -1;
+    return;
+  }
+  const selectedHref = active >= 0 ? results.querySelector('[aria-selected="true"]')?.href : null;
+  matches = searchEntries(entries, q, scope);
   const list = matches.slice(0, visibleLimit);
   list.forEach((entry, i) => {
     const li = document.createElement('li'); li.setAttribute('role', 'presentation');
@@ -111,18 +119,15 @@ function render() {
     li.append(a);
     results.append(li);
   });
-  if (query.value.trim() && matches.length === 0) {
+  if (matches.length === 0) {
     const emptyLi = document.createElement('li');
     emptyLi.className = 'command-empty-state';
     emptyLi.textContent = '未找到相关故事';
     results.append(emptyLi);
   }
-  const more = dialog.querySelector('[data-search-more]');
   if (more) more.hidden = matches.length <= list.length;
   if (status) {
-    status.textContent = query.value.trim()
-      ? (matches.length ? `找到 ${matches.length} 集` : '未找到相关故事')
-      : '';
+    status.textContent = matches.length ? `找到 ${matches.length} 集` : '未找到相关故事';
   }
   if (retry) retry.hidden = !bodyFailed.size;
   setActive(selectedHref ? [...results.querySelectorAll('[role="option"]')].findIndex(option => option.href === selectedHref) : -1);

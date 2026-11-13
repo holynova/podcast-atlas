@@ -148,7 +148,7 @@ def card(ep):
     if a:
         search_text += ' '+a['headline']+' '+a['dek']+' '+' '.join(p['name']+' '+p['role'] for p in a['people'])+' '+' '.join(s['title'] for s in a['sections'])+' '+' '.join(g['term'] for g in a['glossary'])
     badge = '<span class="card-tag ppt">PPT</span>' if pdf else ''
-    return f'''<article class="episode-card" data-search="{E(search_text)}" data-show="{E(ep['show'])}"><a href="{link}" class="card-cover">{cover(ep)}</a><div class="card-copy"><div class="card-meta"><span>{E(ep['topic'])}</span> · <time>{ep['date']}</time></div><h3><a href="{link}">{E(headline)}</a></h3><p>{E(dek)}</p><div class="card-bottom">{badge}</div></div></article>'''
+    return f'''<article class="episode-card" data-search="{E(search_text)}" data-show="{E(ep['show'])}"><a href="{link}" class="card-cover">{cover(ep)}</a><div class="card-copy"><div class="card-meta"><span>{E(ep['topic'])}</span> · <time>{ep['date']}</time></div><h3><a href="{link}">{E(headline)}</a></h3><div class="card-bottom">{badge}</div></div></article>'''
 
 def index(page=1):
     completed = len(ARTICLES); available = sum(ep['available'] for ep in QUEUE)
