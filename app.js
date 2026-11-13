@@ -93,34 +93,38 @@ function render() {
   matches = searchEntries(entries, query.value, scope);
   results.replaceChildren();
   const list = matches.slice(0, visibleLimit);
-  list.forEach((entry,i) => {
-    const li = document.createElement('li'); li.setAttribute('role','presentation');
+  list.forEach((entry, i) => {
+    const li = document.createElement('li'); li.setAttribute('role', 'presentation');
     const a = document.createElement('a'); a.href = entry.url; a.id = `command-option-${i}`;
-    a.setAttribute('role','option'); a.setAttribute('aria-selected','false'); a.tabIndex = -1;
+    a.setAttribute('role', 'option'); a.setAttribute('aria-selected', 'false'); a.tabIndex = -1;
     const title = document.createElement('strong'); title.textContent = entry.title;
     const meta = document.createElement('span');
-    const stage = entry.ready ? (entry.slides ? '文字 + 幻灯片' : '文字已整理 · 幻灯片待补') : (entry.available ? '文字待整理' : '文稿缺失');
-    meta.textContent = `${entry.show} · ${entry.topic} · ${stage}`;
-    a.append(title,meta);
-    const token = normalize(query.value).split(' ').filter(Boolean)[0];
-    if (token && entry.text) {
-      const passage = entry.text.split(/[。！？]/).find(part => normalize(part).includes(token));
-      if (passage) {
-        const excerpt = document.createElement('p'); excerpt.className = 'command-result-snippet';
-        excerpt.textContent = passage.trim().slice(0,110) + (passage.trim().length > 110 ? '…' : '');
-        a.append(excerpt);
-      }
+    meta.className = 'command-option-meta';
+    meta.textContent = `${entry.show} · ${entry.topic}`;
+    if (entry.slides) {
+      const ppt = document.createElement('small');
+      ppt.className = 'command-ppt-badge';
+      ppt.textContent = 'PPT';
+      meta.append(ppt);
     }
-    li.append(a); results.append(li);
+    a.append(title, meta);
+    li.append(a);
+    results.append(li);
   });
-  const more = dialog.querySelector('[data-search-more]');
-  more.hidden = matches.length <= list.length;
-  status.textContent = query.value.trim() ? (matches.length ? `找到 ${matches.length} 集，显示 ${list.length} 集。` : '没有找到匹配单集，试试人物、公司或专题名。') : (matches.length ? '最近整理的单集，也可以输入关键词搜索全部目录。' : '这档播客还没有已整理单集，输入关键词可搜索待整理目录。');
-  if (query.value.trim() && pendingBodies().length) {
-    if (!matches.length) status.textContent = '暂未找到标题或人物匹配。';
-    status.textContent += bodyLoading ? ' 正在补充正文匹配…' : (bodyFailed.size ? ' 部分正文暂未加载，可以重试。' : ' 即将补充正文匹配…');
+  if (query.value.trim() && matches.length === 0) {
+    const emptyLi = document.createElement('li');
+    emptyLi.className = 'command-empty-state';
+    emptyLi.textContent = '未找到相关故事';
+    results.append(emptyLi);
   }
-  retry.hidden = !bodyFailed.size;
+  const more = dialog.querySelector('[data-search-more]');
+  if (more) more.hidden = matches.length <= list.length;
+  if (status) {
+    status.textContent = query.value.trim()
+      ? (matches.length ? `找到 ${matches.length} 集` : '未找到相关故事')
+      : '';
+  }
+  if (retry) retry.hidden = !bodyFailed.size;
   setActive(selectedHref ? [...results.querySelectorAll('[role="option"]')].findIndex(option => option.href === selectedHref) : -1);
 }
 function inflateLiteEntries(data) {

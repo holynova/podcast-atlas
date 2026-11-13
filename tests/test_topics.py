@@ -79,3 +79,18 @@ class TopicTests(unittest.TestCase):
         self.assertGreater(len(dates),10)
         self.assertEqual(dates,sorted(dates,reverse=True))
 
+    def test_search_interface_is_minimal_and_avoids_verbose_descriptions(self):
+        dlg = b.search_dialog()
+        self.assertIn('id="command-search"', dlg)
+        self.assertIn('class="command-bar"', dlg)
+        self.assertIn('id="command-query"', dlg)
+        self.assertIn('id="command-results"', dlg)
+        self.assertIn('class="command-close"', dlg)
+        for verbose_text in ['找一集，或一个关键词', 'command-heading', 'command-input-label', 'command-filters', 'command-help', '输入关键词开始搜索', '↑ ↓ 选择']:
+            self.assertNotIn(verbose_text, dlg)
+        index_page = b.index()
+        library_tools = index_page.split('<div class="library-tools">')[1].split('<div class="episode-grid"')[0]
+        self.assertIn('class="search-icon"', library_tools)
+        self.assertNotIn('<span>搜索</span>', library_tools)
+
+
