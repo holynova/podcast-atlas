@@ -28,7 +28,7 @@ function libraryCard(entry) {
   }
   const copy = element('div', undefined, 'card-copy');
   const meta = element('div', undefined, 'card-meta');
-  meta.append(element('span', entry.topic), document.createTextNode(' · '), element('time', entry.date));
+  meta.append(element('span', entry.topic), document.createTextNode('，'), element('time', entry.date));
   const title = element('h3'); const link = element('a', entry.title); link.href = entry.url; title.append(link);
   const bottom = element('div', undefined, 'card-bottom');
   if (entry.slides) bottom.append(element('span', 'PPT', 'card-tag ppt'));
@@ -108,7 +108,7 @@ function render() {
     const title = document.createElement('strong'); title.textContent = entry.title;
     const meta = document.createElement('span');
     meta.className = 'command-option-meta';
-    meta.textContent = `${entry.show} · ${entry.topic}`;
+    meta.textContent = `${entry.show}，${entry.topic}`;
     if (entry.slides) {
       const ppt = document.createElement('small');
       ppt.className = 'command-ppt-badge';
@@ -610,7 +610,7 @@ async function openSlideViewer(pdfUrl, title, meta = {}) {
   } catch (err) {
     console.error('Slide viewer load error:', err);
     if (slideLoading) {
-      slideLoading.replaceChildren(element('span', '幻灯片在线解析失败，请点击右上角直接下载或在新窗口打开。'));
+      slideLoading.replaceChildren(element('span', '幻灯片在线解析失败，请点击右上角下载后查看。'));
     }
   }
 }
@@ -876,7 +876,7 @@ function buildCatalogDom(data) {
     const topicLink = element('a', g.t);
     topicLink.href = g.u;
     h4.append(topicLink);
-    const countSpan = element('span', `${g.r}/${g.n} 集`, 'cat-group-count');
+    const countSpan = element('span', `${g.r}/${g.n} 已整理`, 'cat-group-count');
     header.append(h4, countSpan);
     const ul = element('ul', undefined, 'cat-list');
     for (const ep of g.eps) {

@@ -1,8 +1,8 @@
 # 播客图解 / Podcast Atlas
 
-把半拿铁、知行小酒馆的故事整理成中文图文知识库：按专题阅读，查看时间线、人物关系和因果链，搭配 NotebookLM 生成的详细漫画幻灯片。两档播客各有专题目录，可按 Cmd/Ctrl+K 搜索标题、人物与讲解正文。每5小时续做一轮，两账号合计目标5套幻灯片；文字先发布，PDF与选图逐步补齐，失败保留记录。原始逐字稿留在独立私有数据项目中，不公开上传到本站或仓库。
+把半拿铁、知行小酒馆的故事整理成中文图文知识库：按专题阅读，查看时间线、人物关系和因果链，搭配 NotebookLM 生成的详细漫画幻灯片。两档播客各有专题目录，可按 Cmd/Ctrl+K 搜索标题、人物与讲解正文。每5小时续做一轮，两账号合计目标20套幻灯片（两账号各10套）；文字先发布，PDF与选图逐步补齐，失败保留记录。原始逐字稿留在独立私有数据项目中，不公开上传到本站或仓库。
 
-A Chinese visual reading library for Half Latte and Zhixing Tavern podcasts. Topic collections connect episode explainers, timelines, people, causal diagrams and illustrated NotebookLM slide decks. Separate podcast topic collections and Cmd/Ctrl+K search cover titles, people and processed articles. A local task runs every five hours, targets five slide decks across both accounts, and publishes text before adding reviewed slides. Original transcripts stay outside this repository and the public website.
+A Chinese visual reading library for Half Latte and Zhixing Tavern podcasts. Topic collections connect episode explainers, timelines, people, causal diagrams and illustrated NotebookLM slide decks. Separate podcast topic collections and Cmd/Ctrl+K search cover titles, people and processed articles. A local task runs every five hours, targets twenty slide decks across both accounts, and publishes text before adding reviewed slides. Original transcripts stay outside this repository and the public website.
 
 ![真实网站预览 / Website screenshot](assets/screenshot.png)
 
@@ -21,7 +21,7 @@ npm run dev
 
 构建封面缩略图需要 Pillow；会优先复用已配置的本地运行时，也可用 `PODCAST_IMAGE_PYTHON` 指定带 Pillow 的 Python。页面使用系统中文字体，首页分批显示 24 集，搜索先加载轻量目录、再按需加载正文。带内容指纹的样式、脚本、封面和搜索分片使用长期缓存；已校对 PDF 保留可更新的原地址。
 
-See `config.json` for the read-only source directory, `PLAN.md` for production order and `state/progress.json` for local progress. To resume a cycle, run `python3 scripts/cycle.py --slide-limit 5 --article-limit 5 --wait-minutes 150`. Use `--text-only` to prepare articles first, or `--plan-only` to inspect the shared cycle without making requests. NotebookLM requires an authenticated `nlm` CLI. PDF previews use the bundled Python/Pillow/pypdf and Poppler runtime paths configured in `scripts/render_slides.py`.
+See `config.json` for the read-only source directory, `PLAN.md` for production order and `state/progress.json` for local progress. To resume a cycle, run `python3 scripts/cycle.py --slide-limit 20 --article-limit 5 --wait-minutes 150`. Use `--text-only` to prepare articles first, or `--plan-only` to inspect the shared cycle without making requests. NotebookLM requires an authenticated `nlm` CLI. PDF previews use the bundled Python/Pillow/pypdf and Poppler runtime paths configured in `scripts/render_slides.py`.
 
 ## 发布 / Deploy
 
