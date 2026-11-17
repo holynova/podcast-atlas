@@ -1,17 +1,51 @@
-# 播客图解 / Podcast Atlas
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="播客图解 Podcast Atlas — 把长故事，读成一张清晰的地图：半拿铁与知行小酒馆的中文图文知识库，329 已整理单集">
+</p>
 
-把半拿铁、知行小酒馆的故事整理成中文图文知识库：按专题阅读，查看时间线、人物关系和因果链，搭配 NotebookLM 生成的详细漫画幻灯片。两档播客各有专题目录，可按 Cmd/Ctrl+K 搜索标题、人物与讲解正文。每5小时续做一轮，两账号合计目标20套幻灯片（两账号各10套）；文字先发布，PDF与选图逐步补齐，失败保留记录。原始逐字稿留在独立私有数据项目中，不公开上传到本站或仓库。
+<p align="center">
+  <a href="https://xiaosang.cc/podcast-atlas/">▶ 在线阅读 Read Online</a>
+  ·
+  <a href="https://github.com/holynova/podcast-atlas">GitHub 仓库</a>
+</p>
 
-A Chinese visual reading library for Half Latte and Zhixing Tavern podcasts. Topic collections connect episode explainers, timelines, people, causal diagrams and illustrated NotebookLM slide decks. Separate podcast topic collections and Cmd/Ctrl+K search cover titles, people and processed articles. A local task runs every five hours, targets twenty slide decks across both accounts, and publishes text before adding reviewed slides. Original transcripts stay outside this repository and the public website.
+播客图解把半拿铁、知行小酒馆的故事整理成中文图文知识库：按专题阅读，每集有讲解正文、时间线、人物关系与因果链，搭配中文漫画幻灯片。两档播客各有专题目录，按 Cmd/Ctrl+K 可搜索标题、人物与讲解正文。
 
-![真实网站预览 / Website screenshot](assets/screenshot.png)
+Podcast Atlas turns two Chinese podcasts — Half Latte (半拿铁) and Zhixing Tavern (知行小酒馆) — into a visual reading library: topic collections connect episode explainers, timelines, people, causal diagrams and illustrated Chinese slide decks. Search titles, people and articles with Cmd/Ctrl+K.
 
-- [Cloudflare Demo](https://xiaosang.cc/podcast-atlas/)
-- [GitHub Repo](https://github.com/holynova/podcast-atlas)
+## 截图 / Screenshot
 
-<img src="assets/qr.png" width="160" alt="扫码访问播客图解网站 / Scan to visit Podcast Atlas">
+<p align="center">
+  <img src="./assets/readme/screenshot-home.png" width="100%" alt="播客图解首页：把长故事读成一张清晰的地图，329 已整理单集、510 单集总数、12 深度专题，右侧是苹果简史漫画幻灯片封面">
+</p>
 
-## 本地运行 / Run locally
+## 收录规模 / Coverage
+
+| 播客 | 专题 | 单集 |
+|---|---:|---:|
+| 半拿铁 | 9 个 | 239 集 |
+| 知行小酒馆 | 3 个 | 271 集 |
+| **合计** | **12 个深度专题** | **510 集，329 集已整理** |
+
+数量以仓库 `content/` 的 329 份单集讲解与线上首页统计为准（2026-11-17）。漫画幻灯片 356 套（PDF），插图 2,494 张。
+
+## 每集包含什么 / What's in an Episode
+
+- **讲解正文**： headline + 导读 + 分节正文，把一集长故事讲成可读的文章。
+- **要点**：一集的核心结论，先看要点再决定读不读全文。
+- **时间线**：事件按时间展开，看到因果如何一步步发生。
+- **人物**：出场人物小传与关系，复杂的人物网一图看清。
+- **因果链与机制**：事情为什么会这样、背后的机制是什么。
+- **术语与注意事项**：生词解释，以及整理时不确定的地方。
+- **漫画幻灯片**：中文漫画风格的幻灯片（PDF），一集一图讲清主线。
+- **原节目入口**：每集保留小宇宙原节目链接及回听时间。
+
+## 阅读方式 / How to Read
+
+- **按专题读**：首页「沿着一个专题，读下去」，从一个话题连续读完相关单集。
+- **按单集读**：单集列表分批加载，每批 24 集，滚动到底自动续载。
+- **搜索**：按 Cmd/Ctrl+K，搜标题、人物与讲解正文；搜索先加载轻量目录，再按需加载正文。
+
+## 本地运行 / Run Locally
 
 ```bash
 npm install
@@ -19,20 +53,36 @@ npm run build
 npm run dev
 ```
 
-构建封面缩略图需要 Pillow；会优先复用已配置的本地运行时，也可用 `PODCAST_IMAGE_PYTHON` 指定带 Pillow 的 Python。页面使用系统中文字体，首页分批显示 24 集，搜索先加载轻量目录、再按需加载正文。带内容指纹的样式、脚本、封面和搜索分片使用长期缓存；已校对 PDF 保留可更新的原地址。
+构建封面缩略图需要 Pillow；页面使用系统中文字体。内容持续更新，每 5 小时续做一轮：文字先发布，幻灯片逐步补齐。原始逐字稿留在独立的私有数据项目中，不公开上传到本站或仓库。
 
-See `config.json` for the read-only source directory, `PLAN.md` for production order and `state/progress.json` for local progress. To resume a cycle, run `python3 scripts/cycle.py --slide-limit 20 --article-limit 5 --wait-minutes 150`. Use `--text-only` to prepare articles first, or `--plan-only` to inspect the shared cycle without making requests. NotebookLM requires an authenticated `nlm` CLI. PDF previews use the bundled Python/Pillow/pypdf and Poppler runtime paths configured in `scripts/render_slides.py`.
+## 目录结构 / Structure
 
-## 发布 / Deploy
-
-```bash
-npm run build
-python3 scripts/check.py
-npm run deploy:check
-npm run deploy
+```
+app.js                前端交互：筛选、搜索、灯箱
+search.js             搜索分片加载
+style.css             全站样式
+config.json           站点配置（域名、路径、生产节奏）
+content/              329 份单集讲解（JSON，一集一份）
+assets/slides/        356 套漫画幻灯片（PDF）
+assets/illustrations/ 2,494 张漫画插图（webp）
+scripts/build.py      构建脚本：生成静态站
+scripts/cycle.py      生产周期脚本（每 5 小时一轮）
+scripts/pipeline.py   内容生产流水线
+tests/                搜索、生产周期与站点性能测试
+vendor/               内置 PDF 阅读器
 ```
 
-Cloudflare Workers · Domain: `xiaosang.cc` · Route: `/podcast-atlas/`.
-Use the sole `main` source branch and deploy locally from its committed, pushed state. No Cloudflare CI or Git integration. The five-hour Codex task invokes the same local workflow.
+## English
 
-网页讲解与漫画为AI辅助整理，可能存在识别或生成错误；每集保留原节目入口及回听时间。完整原始逐字稿不属于公开产物。
+**Podcast Atlas** is a Chinese visual reading library for two podcasts: Half Latte (9 topics, 239 episodes) and Zhixing Tavern (3 topics, 271 episodes) — 510 episodes in total, 329 explained so far, across 12 in-depth topics.
+
+- **Each episode** has an explainer article, key takeaways, a timeline, people profiles, causal diagrams, mechanism notes, a glossary, caveats, and an illustrated Chinese slide deck (PDF). Every episode links back to the original show on Xiaoyuzhou with a listen-back timestamp.
+- **Read by topic**, browse episodes in batches of 24, or press Cmd/Ctrl+K to search titles, people and article text.
+- **Run it**: `npm install`, `npm run build`, `npm run dev`. Thumbnails need Pillow at build time. Content keeps growing on a five-hour cycle — text first, slide decks follow. Original transcripts live in a separate private project and are not in this repo.
+- **Numbers** (2026-11-17): 329 episode explainers in `content/`, 356 slide decks, 2,494 illustrations.
+
+## 声明 / Disclaimer
+
+网页讲解与漫画为 AI 辅助整理，可能存在识别或生成错误；每集保留原节目入口及回听时间。完整原始逐字稿不属于公开产物。
+
+Explainers and comics are AI-assisted and may contain recognition or generation errors; each episode keeps a link to the original show. Full original transcripts are not part of the public site.
