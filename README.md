@@ -1,24 +1,24 @@
+<p align="right"><a href="README.en.md">English</a></p>
+
 <p align="center">
   <img src="./assets/readme/hero.svg" width="100%" alt="播客图解 Podcast Atlas — 把长故事，读成一张清晰的地图：半拿铁与知行小酒馆的中文图文知识库，329 已整理单集">
 </p>
 
 <p align="center">
-  <a href="https://xiaosang.cc/podcast-atlas/">▶ 在线阅读 Read Online</a>
+  <a href="https://xiaosang.cc/podcast-atlas/">▶ 在线阅读</a>
   ·
   <a href="https://github.com/holynova/podcast-atlas">GitHub 仓库</a>
 </p>
 
 播客图解把半拿铁、知行小酒馆的故事整理成中文图文知识库：按专题阅读，每集有讲解正文、时间线、人物关系与因果链，搭配中文漫画幻灯片。两档播客各有专题目录，按 Cmd/Ctrl+K 可搜索标题、人物与讲解正文。
 
-Podcast Atlas turns two Chinese podcasts — Half Latte (半拿铁) and Zhixing Tavern (知行小酒馆) — into a visual reading library: topic collections connect episode explainers, timelines, people, causal diagrams and illustrated Chinese slide decks. Search titles, people and articles with Cmd/Ctrl+K.
-
-## 截图 / Screenshot
+## 截图
 
 <p align="center">
   <img src="./assets/readme/screenshot-home.png" width="100%" alt="播客图解首页：把长故事读成一张清晰的地图，329 已整理单集、510 单集总数、12 深度专题，右侧是苹果简史漫画幻灯片封面">
 </p>
 
-## 收录规模 / Coverage
+## 收录规模
 
 | 播客 | 专题 | 单集 |
 |---|---:|---:|
@@ -28,7 +28,7 @@ Podcast Atlas turns two Chinese podcasts — Half Latte (半拿铁) and Zhixing 
 
 数量以仓库 `content/` 的 329 份单集讲解与线上首页统计为准（2026-11-17）。漫画幻灯片 356 套（PDF），插图 2,494 张。
 
-## 每集包含什么 / What's in an Episode
+## 每集包含什么
 
 - **讲解正文**： headline + 导读 + 分节正文，把一集长故事讲成可读的文章。
 - **要点**：一集的核心结论，先看要点再决定读不读全文。
@@ -39,13 +39,13 @@ Podcast Atlas turns two Chinese podcasts — Half Latte (半拿铁) and Zhixing 
 - **漫画幻灯片**：中文漫画风格的幻灯片（PDF），一集一图讲清主线。
 - **原节目入口**：每集保留小宇宙原节目链接及回听时间。
 
-## 阅读方式 / How to Read
+## 阅读方式
 
 - **按专题读**：首页「沿着一个专题，读下去」，从一个话题连续读完相关单集。
 - **按单集读**：单集列表分批加载，每批 24 集，滚动到底自动续载。
 - **搜索**：按 Cmd/Ctrl+K，搜标题、人物与讲解正文；搜索先加载轻量目录，再按需加载正文。
 
-## 本地运行 / Run Locally
+## 本地运行
 
 ```bash
 npm install
@@ -55,7 +55,7 @@ npm run dev
 
 构建封面缩略图需要 Pillow；页面使用系统中文字体。内容持续更新，每 5 小时续做一轮：文字先发布，幻灯片逐步补齐。原始逐字稿留在独立的私有数据项目中，不公开上传到本站或仓库。
 
-## 目录结构 / Structure
+## 目录结构
 
 ```
 app.js                前端交互：筛选、搜索、灯箱
@@ -72,17 +72,6 @@ tests/                搜索、生产周期与站点性能测试
 vendor/               内置 PDF 阅读器
 ```
 
-## English
-
-**Podcast Atlas** is a Chinese visual reading library for two podcasts: Half Latte (9 topics, 239 episodes) and Zhixing Tavern (3 topics, 271 episodes) — 510 episodes in total, 329 explained so far, across 12 in-depth topics.
-
-- **Each episode** has an explainer article, key takeaways, a timeline, people profiles, causal diagrams, mechanism notes, a glossary, caveats, and an illustrated Chinese slide deck (PDF). Every episode links back to the original show on Xiaoyuzhou with a listen-back timestamp.
-- **Read by topic**, browse episodes in batches of 24, or press Cmd/Ctrl+K to search titles, people and article text.
-- **Run it**: `npm install`, `npm run build`, `npm run dev`. Thumbnails need Pillow at build time. Content keeps growing on a five-hour cycle — text first, slide decks follow. Original transcripts live in a separate private project and are not in this repo.
-- **Numbers** (2026-11-17): 329 episode explainers in `content/`, 356 slide decks, 2,494 illustrations.
-
-## 声明 / Disclaimer
+## 声明
 
 网页讲解与漫画为 AI 辅助整理，可能存在识别或生成错误；每集保留原节目入口及回听时间。完整原始逐字稿不属于公开产物。
-
-Explainers and comics are AI-assisted and may contain recognition or generation errors; each episode keeps a link to the original show. Full original transcripts are not part of the public site.
