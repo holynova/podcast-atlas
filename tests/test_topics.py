@@ -13,7 +13,7 @@ class TopicTests(unittest.TestCase):
         page=b.episode(ep,article)
         first=page.split('id="chapter-0"')[1].split('</section>')[0]
         second=page.split('id="chapter-1"')[1].split('</section>')[0]
-        self.assertIn('文稿时间异常 · 听原节目',first)
+        self.assertIn('文稿时间异常，请听原节目',first)
         self.assertNotIn('原节目 '+article['sections'][0]['timestamp'],first)
         self.assertIn('原节目 '+article['sections'][1]['timestamp'],second)
 
