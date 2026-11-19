@@ -201,7 +201,12 @@ def answer_json(result):
             if key in result:
                 if isinstance(result[key], str):
                     s = result[key].strip(); start = s.find('{')
-                    if start >= 0: return json.JSONDecoder().raw_decode(s[start:])[0]
+                    if start >= 0:
+                        try:
+                            return json.JSONDecoder().raw_decode(s[start:])[0]
+                        except json.JSONDecodeError:
+                            s_clean = re.sub(r',\s*([\]}])', r'\1', s[start:])
+                            return json.JSONDecoder().raw_decode(s_clean)[0]
                 elif isinstance(result[key], dict): return answer_json(result[key])
         for v in result.values():
             if isinstance(v, dict):
