@@ -2,6 +2,7 @@
 """Resumable NotebookLM production. Raw transcripts only enter ignored work/."""
 import argparse, datetime as dt, fcntl, hashlib, json, os, pathlib, re, subprocess, sys, time
 from zoneinfo import ZoneInfo
+from slide_decks import has_deck, load_decks
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONFIG = json.loads((ROOT / 'config.json').read_text())
@@ -317,8 +318,26 @@ def make_article(state, ep):
     article['generated_at'] = now(); write_json(path, article)
     r['article_status'] = 'ready'; r['updated_at'] = now(); write_json(STATE_FILE, state)
 
+def slides_ready(eid):
+    return has_deck(ROOT, eid)
+
+def finish_image_deck(state, ep, source=None):
+    r = state['episodes'][ep['id']]
+    if not slides_ready(ep['id']):
+        if source is None or not source.is_file():
+            raise RuntimeError('Missing temporary slide input')
+        runtime = '/Users/sym/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3'
+        subprocess.run([runtime, str(ROOT / 'scripts/import_slide_images.py'), '--root', str(ROOT), '--pdf', str(source), '--id', ep['id']], check=True, timeout=900)
+    deck = load_decks(ROOT)[ep['id']]
+    r.update(slide_status='downloaded', delivery_format='images', image_key=deck['key'], image_pages=deck['pages'])
+    r.pop('pdf', None)
+    r['updated_at'] = now()
+    write_json(STATE_FILE, state)
+    return True
+
 def collect_slides(state, ep, artifacts=None):
     r = state['episodes'][ep['id']]
+    if slides_ready(ep['id']): return finish_image_deck(state, ep)
     if generation_waiting(r): return False
     if artifacts is not None:
         matches = [a for a in artifacts if (ep['id'] in json.dumps(a, ensure_ascii=False) or r.get('source_id') in a.get('source_ids', [])) and a.get('id',a.get('artifact_id')) not in state.get('diagnostic_artifact_ids',[])]
@@ -329,13 +348,9 @@ def collect_slides(state, ep, artifacts=None):
                 a = completed or next((a for a in matches if str(a.get('status', '')).lower() not in ['failed', 'error', '4']), matches[0])
                 r['artifact_id'] = a.get('artifact_id', a.get('id'))
     if not r.get('artifact_id'): return False
-    target = ROOT / 'assets/slides' / (ep['id'] + '.pdf')
+    target = ROOT / 'work/slide-inputs' / (ep['id'] + '.pdf')
     if target.exists():
-        if not (ROOT / 'assets/illustrations' / ep['id'] / '0.webp').exists():
-            runtime = '/Users/sym/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3'
-            subprocess.run([runtime, str(ROOT / 'scripts/optimize_slides.py'), str(target)], check=True, timeout=180)
-            subprocess.run([runtime, str(ROOT / 'scripts/render_slides.py'), str(target)], check=True, timeout=180)
-        r['slide_status'] = 'downloaded'; r['pdf'] = 'assets/slides/' + target.name; return True
+        return finish_image_deck(state, ep, target)
     if artifacts is None: artifacts = get_artifacts(r['notebook_id'])
     a = next((a for a in artifacts if a.get('id', a.get('artifact_id')) == r['artifact_id']), None)
     if not a: raise ValueError('Tracked artifact missing')
@@ -365,12 +380,8 @@ def collect_slides(state, ep, artifacts=None):
     cli_result = subprocess.run(['/Users/sym/.local/bin/nlm', 'download', 'slide-deck', r['notebook_id'], '--id', r['artifact_id'], '--output', str(temp), '--no-progress'], capture_output=True, text=True, timeout=300,env=network_env())
     if cli_result.returncode: raise RuntimeError(cli_result.stderr or cli_result.stdout)
     if not temp.exists() or temp.read_bytes()[:5] != b'%PDF-': raise ValueError('Downloaded slide is not a PDF')
-    os.replace(temp, target); r['slide_status'] = 'downloaded'; r['pdf'] = 'assets/slides/' + target.name
-    # Native slide visuals become the illustrated web chapter assets.
-    py = '/Users/sym/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3'
-    subprocess.run([py, str(ROOT / 'scripts/optimize_slides.py'), str(target)], check=True, timeout=180)
-    subprocess.run([py, str(ROOT / 'scripts/render_slides.py'), str(target)], check=True, timeout=180)
-    r['updated_at'] = now(); write_json(STATE_FILE, state); return True
+    os.replace(temp, target)
+    return finish_image_deck(state, ep, target)
 
 def assigned_episode_ids(state):
     assigned = {eid for batch in state['batches'].values() for eid in batch['ids']}
@@ -436,7 +447,7 @@ def run(args):
                 recovered = any(a.get('status') == 'completed' and ep['id'] in json.dumps(a,ensure_ascii=False) for a in remote)
                 if not recovered and (r.get('slide_status') == 'failed' or not remaining_attempts(r, 'download')):
                     pending += 1; continue
-                if r.get('notebook_id') not in artifact_cache and not (ROOT/'assets/slides'/(ep['id']+'.pdf')).exists():
+                if r.get('notebook_id') not in artifact_cache and not slides_ready(ep['id']):
                     pending += 1; continue
                 try:
                     ready = collect_slides(state, ep, artifact_cache.get(r.get('notebook_id')))

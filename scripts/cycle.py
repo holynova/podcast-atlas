@@ -87,7 +87,7 @@ def fail_count(ep,main):
 def plan(main,items,key,slide_limit,article_limit):
     if key in main.get('cycles',{}):return copy.deepcopy(main['cycles'][key])
     available=[ep for ep in items if ep['available']]
-    slide_candidates=[ep for ep in available if not (p.ROOT/'assets/slides'/(ep['id']+'.pdf')).exists() and stage_eligible(ep,main,['source','slides','download'])]
+    slide_candidates=[ep for ep in available if not p.slides_ready(ep['id']) and stage_eligible(ep,main,['source','slides','download'])]
     # Ready text goes first while keeping chronic repeat-failures (>= 5) from starving fresh episodes.
     slide_candidates.sort(key=lambda ep:(fail_count(ep,main)>=5,not (p.ROOT/'content'/(ep['id']+'.json')).exists()))
     article_candidates=[ep for ep in available if not (p.ROOT/'content'/(ep['id']+'.json')).exists() and stage_eligible(ep,main,['source','article'])]
@@ -181,7 +181,7 @@ def submit(profile,items,cycle,checked,caches,deadline):
     for ep in candidates:
         eid=ep['id'];r=job['episodes'][eid]
         if time.monotonic()>=deadline:return
-        if (p.ROOT/'assets/slides'/(eid+'.pdf')).exists() or r.get('slide_status') in ['queued','submitting']:continue
+        if p.slides_ready(eid) or r.get('slide_status') in ['queued','submitting']:continue
         if eid in cycle.get('attempted_source_ids',[]) and not r.get('source_id'):continue
         if not all(p.remaining_attempts(r,k) for k in ['source','slides','download']):continue
         stage='source'
@@ -234,7 +234,7 @@ def can_continue(cycle,main,second,deadline):
         for eid in cycle['slide_ids']:
             if owner(eid,main)!=profile or not can_submit(cycle,eid):continue
             r=job['episodes'].get(eid,{})
-            if (p.ROOT/'assets/slides'/(eid+'.pdf')).exists():continue
+            if p.slides_ready(eid):continue
             if not all(p.remaining_attempts(r,k) for k in ['source','slides','download']):continue
             if eid in cycle.get('attempted_source_ids',[]) and not r.get('source_id'):continue
             return True
@@ -266,7 +266,7 @@ def run(args):
                 if not args.text_only:
                     for profile in ['default','account-b']:submit(profile,items,cycle,checked,caches,deadline)
                 cycle['article_ready_ids']=[eid for eid in cycle['article_ids'] if (p.ROOT/'content'/(eid+'.json')).exists()]
-                cycle['completed_slide_ids']=[eid for eid in cycle['slide_ids'] if (p.ROOT/'assets/slides'/(eid+'.pdf')).exists()]
+                cycle['completed_slide_ids']=[eid for eid in cycle['slide_ids'] if p.slides_ready(eid)]
                 cycle['status']='complete' if len(cycle['completed_slide_ids'])==len(cycle['slide_ids']) else 'pending'
                 cycle['last_checked_at']=p.now();save_cycle(cycle)
                 print('CYCLE',json.dumps({k:cycle[k] for k in ['key','status','article_ready_ids','completed_slide_ids','submitted_slide_ids']},ensure_ascii=False),flush=True)

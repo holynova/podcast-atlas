@@ -2,8 +2,10 @@
 import collections, html, json, pathlib, re, shutil, math
 try:
     from site_assets import prepare, write_asset
+    from slide_decks import load_decks, clone_copy
 except ModuleNotFoundError:
     from scripts.site_assets import prepare, write_asset
+    from scripts.slide_decks import load_decks, clone_copy
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DIST = ROOT / 'dist'
 CFG = json.loads((ROOT / 'config.json').read_text())
@@ -14,7 +16,7 @@ ASSET_PREFIX = '/'
 INLINE_CSS = ''
 COVERS = {}
 CHAPTER_IMAGES = {}
-SLIDE_DECKS = {}
+SLIDE_DECKS = {eid: {"prefix": f"/static/{deck['key']}/", "pages": deck["pages"]} for eid, deck in load_decks(ROOT).items()}
 SEARCH_URL = '/search-index.json'
 CATALOG_URL = '/catalog.json'
 PAGE_SIZE = 24
@@ -46,12 +48,12 @@ def build_catalog_data():
         items = []
         for e in eps:
             a = ARTICLES.get(e['id'])
-            has_pdf = (ROOT / 'assets/slides' / (e['id'] + '.pdf')).exists()
+            has_slides = e['id'] in SLIDE_DECKS
             link = article_url(e['id']) if a else (topic_url(topic, show) + '#episode-' + e['id'])
             title = a['headline'] if a else clean_title(e['title'])
             order_text = f'{e["order"]:02d}' if e.get('order', 10000) < 10000 else ''
             row = {'id': e['id'], 'o': order_text, 'h': title, 'u': base + link}
-            if has_pdf:
+            if has_slides:
                 row['p'] = 1
                 deck = SLIDE_DECKS.get(e['id'])
                 if deck:
@@ -110,7 +112,7 @@ def lightbox_dialog():
     return '''<dialog id="image-lightbox" class="image-lightbox" aria-modal="true" aria-label="查看大图"><div class="lightbox-shell"><button type="button" class="lightbox-close" data-close-lightbox aria-label="关闭大图">关闭 <kbd>Esc</kbd></button><div class="lightbox-stage"><img id="lightbox-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt=""><p id="lightbox-caption" class="lightbox-caption"></p></div></div></dialog>'''
 
 def slide_viewer_dialog():
-    return '''<dialog id="slide-viewer" class="slide-viewer" aria-modal="true" aria-label="幻灯片查看器"><div class="slide-viewer-shell"><header class="slide-viewer-top"><div class="slide-viewer-info"><h3 id="slide-title"></h3><span class="slide-counter"><b id="slide-page-num">1</b> / <span id="slide-page-count">-</span> 页</span></div><div class="slide-viewer-tools"><button type="button" class="slide-btn" id="slide-fs-btn" aria-label="全屏模式">⛶ 全屏</button><button type="button" class="slide-btn slide-btn-close" data-close-slides aria-label="关闭幻灯片">✕</button></div></header><div class="slide-viewer-body" id="slide-body"><button type="button" class="slide-arrow slide-prev" id="slide-prev" aria-label="上一页">‹</button><div class="slide-canvas-box" id="slide-canvas-box"><img id="slide-img" class="slide-img" alt="幻灯片内容" hidden><canvas id="slide-canvas"></canvas><div class="slide-loading" id="slide-loading"><span>正在载入幻灯片…</span></div><div class="slide-end-card" id="slide-end-card" hidden><div class="slide-end-inner"><span class="slide-end-kicker">本集幻灯片已看完</span><h4 id="slide-end-current-title"></h4><div class="slide-end-actions"><button type="button" class="slide-end-btn next" id="slide-jump-next" hidden><span class="slide-end-btn-dir">下一篇幻灯片 →</span><strong id="slide-jump-next-title"></strong></button><button type="button" class="slide-end-btn prev" id="slide-jump-prev" hidden><span class="slide-end-btn-dir">← 上一篇幻灯片</span><strong id="slide-jump-prev-title"></strong></button><button type="button" class="slide-end-btn replay" id="slide-replay-btn"><span>↺ 从头再看</span></button></div></div></div></div><button type="button" class="slide-arrow slide-next" id="slide-next" aria-label="下一页">›</button></div></div></dialog>'''
+    return '''<dialog id="slide-viewer" class="slide-viewer" aria-modal="true" aria-label="幻灯片查看器"><div class="slide-viewer-shell"><header class="slide-viewer-top"><div class="slide-viewer-info"><h3 id="slide-title"></h3><span class="slide-counter"><b id="slide-page-num">1</b> / <span id="slide-page-count">-</span> 页</span></div><div class="slide-viewer-tools"><button type="button" class="slide-btn" id="slide-fs-btn" aria-label="全屏模式">⛶ 全屏</button><button type="button" class="slide-btn slide-btn-close" data-close-slides aria-label="关闭幻灯片">✕</button></div></header><div class="slide-viewer-body" id="slide-body"><button type="button" class="slide-arrow slide-prev" id="slide-prev" aria-label="上一页">‹</button><div class="slide-canvas-box" id="slide-canvas-box"><img id="slide-img" class="slide-img" alt="幻灯片内容" hidden><div class="slide-loading" id="slide-loading"><span>正在载入幻灯片…</span></div><div class="slide-end-card" id="slide-end-card" hidden><div class="slide-end-inner"><span class="slide-end-kicker">本集幻灯片已看完</span><h4 id="slide-end-current-title"></h4><div class="slide-end-actions"><button type="button" class="slide-end-btn next" id="slide-jump-next" hidden><span class="slide-end-btn-dir">下一篇幻灯片 →</span><strong id="slide-jump-next-title"></strong></button><button type="button" class="slide-end-btn prev" id="slide-jump-prev" hidden><span class="slide-end-btn-dir">← 上一篇幻灯片</span><strong id="slide-jump-prev-title"></strong></button><button type="button" class="slide-end-btn replay" id="slide-replay-btn"><span>↺ 从头再看</span></button></div></div></div></div><button type="button" class="slide-arrow slide-next" id="slide-next" aria-label="下一页">›</button></div></div></dialog>'''
 
 def article_url(eid): return '/episodes/' + eid + '/'
 def clean_title(t): return __import__('re').sub(r'^No\.\d+\s*[^\u4e00-\u9fffA-Za-z「《]*', '', t).split(' | ')[0]
@@ -143,11 +145,11 @@ def card(ep):
     link = article_url(ep['id']) if ready else topic_url(ep['topic'],ep['show'])
     headline = a['headline'] if a else clean_title(ep['title'])
     dek = a['dek'] if a else '这一集正在制作队列中，完成后会在这里补上图文讲解与中文漫画幻灯片。'
-    pdf = (ROOT / 'assets/slides' / (ep['id'] + '.pdf')).exists()
+    has_slides = ep['id'] in SLIDE_DECKS
     search_text = ep['title']+' '+ep['topic']+' '+ep['show']
     if a:
         search_text += ' '+a['headline']+' '+a['dek']+' '+' '.join(p['name']+' '+p['role'] for p in a['people'])+' '+' '.join(s['title'] for s in a['sections'])+' '+' '.join(g['term'] for g in a['glossary'])
-    badge = '<span class="card-tag ppt">PPT</span>' if pdf else ''
+    badge = '<span class="card-tag ppt">PPT</span>' if has_slides else ''
     return f'''<article class="episode-card" data-search="{E(search_text)}" data-show="{E(ep['show'])}"><a href="{link}" class="card-cover">{cover(ep)}</a><div class="card-copy"><div class="card-meta"><span>{E(ep['topic'])}</span>，<time>{ep['date']}</time></div><h3><a href="{link}">{E(headline)}</a></h3><div class="card-bottom">{badge}</div></div></article>'''
 
 def index(page=1):
@@ -220,7 +222,7 @@ def episode_chapter_sources():
     return sorted(paths)
 
 def episode(ep, a):
-    eid = ep['id']; pdf = (ROOT / 'assets/slides' / (eid + '.pdf')).exists()
+    eid = ep['id']; has_slides = eid in SLIDE_DECKS
     samples = sorted((ROOT / 'assets/illustrations' / eid).glob('*.webp'))
     reviewed = reviewed_chapter_images(eid, len(a['sections']))
     chapter_links = ''.join(f'<a href="#chapter-{i}"><span>{i+1:02d}</span>{E(s["title"])}</a>' for i,s in enumerate(a['sections']))
@@ -267,8 +269,8 @@ def episode(ep, a):
     next_ep = siblings[position + 1] if position + 1 < len(siblings) else None
 
     # Slide navigation context for viewer
-    all_slide_eps = [x for x in QUEUE if (ROOT / 'assets/slides' / (x['id'] + '.pdf')).exists()]
-    topic_slide_eps = [x for x in siblings if (ROOT / 'assets/slides' / (x['id'] + '.pdf')).exists()]
+    all_slide_eps = [x for x in QUEUE if x['id'] in SLIDE_DECKS]
+    topic_slide_eps = [x for x in siblings if x['id'] in SLIDE_DECKS]
     topic_slide_pos = next((i for i, x in enumerate(topic_slide_eps) if x['id'] == eid), -1)
     if topic_slide_pos > 0:
         prev_slide_ep = topic_slide_eps[topic_slide_pos - 1]
@@ -292,19 +294,19 @@ def episode(ep, a):
         t_id = target_ep['id']
         t_deck = SLIDE_DECKS.get(t_id)
         return (
-            f'/assets/slides/{t_id}.pdf',
+            t_id,
             t_deck['prefix'] if t_deck else '',
             str(t_deck['pages']) if t_deck else ''
         )
 
-    if pdf:
-        pdf_url, slide_prefix, slide_count = slide_ref(ep)
+    if has_slides:
+        deck_id, slide_prefix, slide_count = slide_ref(ep)
         prev_slide_url, prev_slide_prefix, prev_slide_count = slide_ref(prev_slide_ep)
         prev_slide_title = ep_headline(prev_slide_ep)
         next_slide_url, next_slide_prefix, next_slide_count = slide_ref(next_slide_ep)
         next_slide_title = ep_headline(next_slide_ep)
         slide_attrs = (
-            f'data-open-slides="{pdf_url}" '
+            f'data-open-slides="{deck_id}" '
             f'data-slide-id="{eid}" '
             f'data-slide-prefix="{slide_prefix}" '
             f'data-slide-count="{slide_count}" '
@@ -359,8 +361,8 @@ def topic_page(topic, show=None):
     eps=[ep for ep in QUEUE if ep['topic']==topic and ep['show']==show]
     n=sum(ep['id'] in ARTICLES for ep in eps);rows=''
     for position,ep in enumerate(eps,1):
-        a=ARTICLES.get(ep['id']);pdf=(ROOT/'assets/slides'/(ep['id']+'.pdf')).exists()
-        status=('文字与幻灯片齐全' if pdf else '文字已整理，幻灯片待补') if a else ('文字待整理' if ep['available'] else '暂无文稿')
+        a=ARTICLES.get(ep['id']);has_slides=ep['id'] in SLIDE_DECKS
+        status=('文字与幻灯片齐全' if has_slides else '文字已整理，幻灯片待补') if a else ('文字待整理' if ep['available'] else '暂无文稿')
         title=E(a['headline'] if a else clean_title(ep['title']))
         name=f'<a href="{article_url(ep["id"])}">{title} ↗</a>' if a else title
         order_no = ep["order"] if ep.get("order", 10000) < 10000 else position
@@ -371,7 +373,7 @@ def _topic_summary(show, topic):
     """Collect verified counts, date span, digest snippet, and cover episode for a topic."""
     eps = [ep for ep in QUEUE if ep['show'] == show and ep['topic'] == topic]
     ready_eps = [ep for ep in eps if ep['id'] in ARTICLES]
-    ppt_count = sum(1 for ep in eps if (ROOT / 'assets/slides' / (ep['id'] + '.pdf')).exists())
+    ppt_count = sum(1 for ep in eps if ep['id'] in SLIDE_DECKS)
     cover_ep = next(
         (ep for ep in ready_eps + eps if ep['id'] in COVERS or (ROOT / 'assets/illustrations' / ep['id'] / '0.webp').exists()),
         None,
@@ -514,16 +516,16 @@ def all_topics():
 def search_index(full=True):
     entries=[]
     for ep in QUEUE:
-        a=ARTICLES.get(ep['id']);pdf=(ROOT/'assets/slides'/(ep['id']+'.pdf')).exists()
+        a=ARTICLES.get(ep['id']);has_slides=ep['id'] in SLIDE_DECKS
         fields=[]
         if a:
             fields=[a['dek'],*a['takeaways'],*[t for sec in a['sections'] for t in [sec['title'],*sec['paragraphs']]],*[p['name']+' '+p['role']+' '+p['detail'] for p in a['people']],*[g['term']+' '+g['meaning'] for g in a['glossary']],*[t['date']+' '+t['title']+' '+t['detail'] for t in a['timeline']]]
         href=article_url(ep['id']) if a else topic_url(ep['topic'],ep['show'])+'#episode-'+ep['id']
-        entries.append({'id':ep['id'],'title':a['headline'] if a else clean_title(ep['title']),'original_title':ep['title'],'show':ep['show'],'topic':ep['topic'],'date':ep['date'],'ready':bool(a),'slides':bool(pdf),'available':ep['available'],'order':len(entries),'url':CFG.get('base_path','')+href,'text':' '.join(fields) if full else (' '.join([p['name']+' '+p['role'] for p in a['people']] + [sec['title'] for sec in a['sections']] + [g['term'] for g in a['glossary']]) if a else ''), 'summary':a['dek'] if a else '', 'image':COVERS.get(ep['id'])})
+        entries.append({'id':ep['id'],'title':a['headline'] if a else clean_title(ep['title']),'original_title':ep['title'],'show':ep['show'],'topic':ep['topic'],'date':ep['date'],'ready':bool(a),'slides':bool(has_slides),'available':ep['available'],'order':len(entries),'url':CFG.get('base_path','')+href,'text':' '.join(fields) if full else (' '.join([p['name']+' '+p['role'] for p in a['people']] + [sec['title'] for sec in a['sections']] + [g['term'] for g in a['glossary']]) if a else ''), 'summary':a['dek'] if a else '', 'image':COVERS.get(ep['id'])})
     return {'version':VERSION,'entries':entries}
 
 def progress_page():
-    n = len(ARTICLES); slides = len(list((ROOT / 'assets/slides').glob('*.pdf')))
+    n = len(ARTICLES); slides = len(SLIDE_DECKS)
     missing = sum(not ep['available'] for ep in QUEUE)
     rows = ''.join(f'<tr><td>{E(show)} / {E(topic)}</td><td>{sum(ep["id"] in ARTICLES for ep in QUEUE if ep["topic"] == topic and ep["show"] == show)} / {sum(ep["topic"] == topic and ep["show"] == show for ep in QUEUE)}</td><td>{"专题顺序" if topic != "单集精选" else "发布时间从新到旧"}</td></tr>' for show,topic in TOPIC_GROUPS)
     pending=[ep for ep in QUEUE if ep['available'] and ep['id'] not in ARTICLES]
@@ -588,8 +590,8 @@ def main():
     if DIST.exists(): shutil.rmtree(DIST)
     DIST.mkdir()
     for name in ['style.css', 'app.js', 'search.js', 'favicon.svg']: shutil.copyfile(ROOT / name, DIST / name)
-    if (ROOT / 'assets').exists(): shutil.copytree(ROOT / 'assets', DIST / 'assets')
-    if (ROOT / 'vendor').exists(): shutil.copytree(ROOT / 'vendor', DIST / 'vendor')
+    if (ROOT / 'assets').exists():
+        shutil.copytree(ROOT / 'assets', DIST / 'assets', copy_function=clone_copy, ignore=shutil.ignore_patterns('slides', 'slide-decks.json', 'readme', '*.pdf'))
     ASSET_PREFIX, INLINE_CSS, COVERS, CHAPTER_IMAGES, SLIDE_DECKS = prepare(ROOT, DIST, chapter_sources=episode_chapter_sources())
     CATALOG_URL = write_asset(DIST, json.dumps(build_catalog_data(), ensure_ascii=False, separators=(',', ':')).encode(), '.catalog.json')
     metadata = search_index(full=False)

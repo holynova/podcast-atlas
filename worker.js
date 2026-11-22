@@ -9,8 +9,9 @@ export default {
     }
     if (!url.pathname.startsWith(`${BASE}/`)) return new Response('Not found', { status: 404 });
     url.pathname = url.pathname.slice(BASE.length);
+    if (/\.pdf$/i.test(url.pathname)) return new Response('This site now delivers image slides only.', { status: 410 });
     let response = await env.ASSETS.fetch(new Request(url, request));
-    // Only content-addressed files are immutable. Stable PDF/image URLs remain
+    // Only content-addressed files are immutable. Stable image URLs remain
     // revalidated so later editorial corrections cannot be hidden by old caches.
     if ((response.ok || response.status === 304) && /^\/static\/[a-f0-9]{16}(?:\/|\.)/.test(url.pathname)) {
       const headers = new Headers(response.headers);

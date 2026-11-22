@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pipeline import now, write_json, network_env
 from publication_assets import hash_static_manifest_files, reusable_static_assets, verified_unchanged_asset
 from https_batch import HttpsBatch
+from slide_decks import load_decks, remove_verified_pdf_inputs
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -43,6 +44,10 @@ def verify_and_record(root, deployment_id, full_verify=False, topic_groups=None,
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text())
         static_hashes = hash_static_manifest_files(root / 'dist', manifest['files'])
+        for eid, deck in load_decks(root).items():
+            for page, image in enumerate(deck['images'], 1):
+                if static_hashes.get(f"static/{deck['key']}/{page}.webp") != image['sha256']:
+                    raise RuntimeError('Missing or changed slide image: ' + eid)
         reused_static = reusable_static_assets(static_hashes, previous_state, previous, full_verify=full_verify)
         pending_static = [rel for rel in static_hashes if rel not in reused_static]
         paths.append('/asset-manifest.json')
@@ -57,13 +62,13 @@ def verify_and_record(root, deployment_id, full_verify=False, topic_groups=None,
     for file in content_files:
         eid = file.stem
         paths.append('/episodes/' + eid + '/')
-        candidates = [root / 'assets/slides' / (eid + '.pdf'), *sorted((root / 'assets/illustrations' / eid).glob('*.webp'))]
+        candidates = sorted((root / 'assets/illustrations' / eid).glob('*.webp'))
         for asset in candidates:
             if asset.exists() and (full_verify or not verified_unchanged_asset(root, asset, eid, previous)):
                 paths.append('/' + asset.relative_to(root).as_posix())
 
     def url_for(path):
-        return domain + path + ('?verify=' + sha if path.endswith('.pdf') else '')
+        return domain + path
 
     transport = HttpsBatch(root / 'work', env)
     transport.fetch([url_for(path) for path in paths])
@@ -117,14 +122,6 @@ def verify_and_record(root, deployment_id, full_verify=False, topic_groups=None,
         eid = file.stem
         if article['headline'].encode() not in get('/episodes/' + eid + '/', 'text/html'):
             raise RuntimeError('Live article mismatch: ' + eid)
-        pdf = root / 'assets/slides' / (eid + '.pdf')
-        if pdf.exists():
-            if not full_verify and verified_unchanged_asset(root, pdf, eid, previous):
-                reused.append(pdf.relative_to(root).as_posix())
-            else:
-                data = get('/assets/slides/' + eid + '.pdf', 'application/pdf')
-                if data[:5] != b'%PDF-' or hashlib.sha256(data).digest() != hashlib.sha256(pdf.read_bytes()).digest():
-                    raise RuntimeError('Live PDF mismatch')
         for image in sorted((root / 'assets/illustrations' / eid).glob('*.webp')):
             if not full_verify and verified_unchanged_asset(root, image, eid, previous):
                 reused.append(image.relative_to(root).as_posix())
@@ -174,6 +171,10 @@ def verify_and_record(root, deployment_id, full_verify=False, topic_groups=None,
         for eid in verified:
             episodes.setdefault(eid, {}).update(publication_status='verified', published_sha=sha, published_at=verified_at)
         write_json(root / 'state/progress.json', state)
+        removed = remove_verified_pdf_inputs(root, state)
+        if removed:
+            write_json(root / 'work' / ('removed-slide-inputs-' + deployment_id + '.json'), removed)
+            print(f'Removed {len(removed)} verified temporary PDF inputs', flush=True)
 
     print(f'Verified {domain}: {len(verified)} articles, v{version}, source {sha}')
     return {

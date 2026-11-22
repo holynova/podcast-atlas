@@ -24,9 +24,10 @@ def sync_primary(job,profile):
             changed = primary.get('artifact_id') != r.get('artifact_id') or primary.get('status') != 'complete'
             if primary.get('profile')!=profile:
                 primary['previous_account_context']={k:copy.deepcopy(primary[k]) for k in ['notebook_id','source_id','artifact_id','failed_artifact_ids','attempts','errors'] if k in primary}
-            for k in ['notebook_id','source_id','source_sha256','artifact_id','all_artifact_ids','slide_status','slide_remote_status','pdf']:
+            for k in ['notebook_id','source_id','source_sha256','artifact_id','all_artifact_ids','slide_status','slide_remote_status','delivery_format','image_key','image_pages']:
                 if k in r:primary[k]=r[k]
             primary.update(status='complete',profile=profile,updated_at=p.now())
+            if primary.get('delivery_format') == 'images': primary.pop('pdf', None)
             if changed: primary['publication_status']='pending'
             primary.pop('delegated_profile',None);primary.pop('last_error',None)
         elif r.get('status') != 'superseded' and primary.get('status') != 'complete':primary['delegated_profile']=profile

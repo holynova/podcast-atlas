@@ -2,6 +2,7 @@
 import hashlib, json, pathlib, shutil, sys
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image
+from slide_decks import clone_copy
 
 
 def build_variant_set(args):
@@ -18,7 +19,7 @@ def build_variant_set(args):
                 tmp = cache / f'{key}.tmp.webp'
                 image.save(tmp, 'WEBP', quality=quality, method=4)
                 tmp.replace(target)
-            shutil.copyfile(target, dist_static / target.name)
+            clone_copy(target, dist_static / target.name)
             variants.append({'url': '/static/' + target.name, 'width': width})
         return key_name, {'width': original.width, 'height': original.height, 'variants': variants}
 

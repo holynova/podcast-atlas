@@ -51,7 +51,6 @@ class RecordDeploymentTests(unittest.TestCase):
         (root / 'work').mkdir()
         (root / 'state').mkdir()
         (root / 'content').mkdir()
-        (root / 'assets/slides').mkdir(parents=True)
         (root / 'assets/illustrations/ep1').mkdir(parents=True)
         (root / 'dist/static/deck1').mkdir(parents=True)
 
@@ -61,7 +60,6 @@ class RecordDeploymentTests(unittest.TestCase):
         (root / 'app.js').write_text('console.log(1)')
         (root / 'search.js').write_text('export function s(){}')
         (root / 'content/ep1.json').write_text(json.dumps({'headline': '测试标题'}))
-        (root / 'assets/slides/ep1.pdf').write_bytes(b'%PDF-1.4\nbody')
         (root / 'assets/illustrations/ep1/0.webp').write_bytes(b'RIFFwebp0')
         (root / 'dist/static/deck1/1.webp').write_bytes(b'RIFFslide1')
         search_idx = {'version': '2.1.0', 'entries': []}
@@ -81,7 +79,6 @@ class RecordDeploymentTests(unittest.TestCase):
             'https://example.test/site/topics/': ('半拿铁 与 知行小酒馆'.encode(), 'text/html'),
             'https://example.test/site/shows/bannatie/t1/': ('半拿铁 / 专题一'.encode(), 'text/html'),
             'https://example.test/site/episodes/ep1/': ('<h1>测试标题</h1>'.encode(), 'text/html'),
-            'https://example.test/site/assets/slides/ep1.pdf?verify=sha-1': (b'%PDF-1.4\nbody', 'application/pdf'),
             'https://example.test/site/assets/illustrations/ep1/0.webp': (b'RIFFwebp0', 'image/webp'),
         }
         return live_map
@@ -131,6 +128,7 @@ class RecordDeploymentTests(unittest.TestCase):
             # First verified deployment seeds verified_static_assets after full HTTPS check.
             summary1, fetched1 = self._run_with_fake_batch(root, 'dep-1', 'sha-1', live_map)
             self.assertIn('https://example.test/site/static/deck1/1.webp', fetched1)
+            self.assertFalse(any('.pdf' in url for url in fetched1))
             self.assertEqual(summary1, {'verified_episodes': 1, 'static_total': 1, 'static_fetched': 1, 'static_reused': 0})
 
             state1 = json.loads((root / 'state/progress.json').read_text())
@@ -164,7 +162,6 @@ class RecordDeploymentTests(unittest.TestCase):
 
             # Explicit --full-verify re-fetches all static assets even when unchanged.
             live_map['https://example.test/site/static/deck1/3.webp'] = (b'RIFFslide3', 'image/webp')
-            live_map['https://example.test/site/assets/slides/ep1.pdf?verify=sha-3'] = (b'%PDF-1.4\nbody', 'application/pdf')
             summary3, fetched3 = self._run_with_fake_batch(root, 'dep-3', 'sha-3', live_map, full_verify=True)
             self.assertIn('https://example.test/site/static/deck1/1.webp', fetched3)
             self.assertIn('https://example.test/site/static/deck1/2.webp', fetched3)

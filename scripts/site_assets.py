@@ -1,4 +1,5 @@
-"""Content-addressed public assets; original PDFs and reviewed images stay intact."""
+"""Content-addressed images and application assets; no PDF delivery."""
+from slide_decks import stage_decks
 import hashlib, importlib.util, json, os, pathlib, re, subprocess, sys, tempfile
 
 
@@ -66,9 +67,5 @@ def prepare(root, dist, chapter_sources=None):
         pathlib.Path(manifest_file).unlink(missing_ok=True)
     thumb_data = json.loads(thumbs.stdout)
 
-    slides_res = subprocess.run(
-        [interpreter, str(root / 'scripts/build_slides.py'), str(root), str(dist)],
-        check=True, capture_output=True, text=True
-    )
-    slides_data = json.loads(slides_res.stdout)
+    slides_data = stage_decks(root, dist)
     return '/static/' + digest + '/', inline_css, thumb_data['covers'], thumb_data['chapters'], slides_data

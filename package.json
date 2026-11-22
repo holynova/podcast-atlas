@@ -1,6 +1,6 @@
 {
   "name": "podcast-atlas",
-  "version": "2.2.34",
+  "version": "2.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,6 @@
     "deploy": "python3 scripts/run_wrangler.py deploy --config wrangler.jsonc"
   },
   "devDependencies": {
-    "pdfjs-dist": "^4.10.38",
     "qrcode": "1.5.4",
     "wrangler": "4.149.0"
   }

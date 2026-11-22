@@ -147,7 +147,6 @@ input[type=search]::-webkit-search-cancel-button,input[type=search]::-webkit-sea
 
 .slide-viewer-body{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;width:100%;height:calc(100vh - 50px)}
 .slide-canvas-box{width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative}
-#slide-canvas{max-width:96%;max-height:96%;display:block;border-radius:4px;box-shadow:0 16px 50px rgba(0,0,0,0.8);cursor:pointer}
 .slide-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(12,15,13,0.85);font-size:17px;color:#a0ab9a}
 
 .slide-arrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:80px;background:rgba(0,0,0,0.4);color:#fff;border:1px solid rgba(255,255,255,0.12);border-radius:6px;font-size:21px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;z-index:10}

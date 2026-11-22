@@ -354,7 +354,7 @@ document.addEventListener('click', event => {
 });
 
 // -------------------------------------------------------------
-// 2. In-Page Slide Viewer (PDF 在页面中打开、纯粹翻页查看)
+// 2. In-Page Image Slide Viewer
 // -------------------------------------------------------------
 const slideViewer = document.querySelector('#slide-viewer');
 const slideTitle = slideViewer?.querySelector('#slide-title');
@@ -362,7 +362,6 @@ const slidePageNum = slideViewer?.querySelector('#slide-page-num');
 const slidePageCount = slideViewer?.querySelector('#slide-page-count');
 const slideFsBtn = slideViewer?.querySelector('#slide-fs-btn');
 const slideCloseBtn = slideViewer?.querySelector('[data-close-slides]');
-const slideCanvas = slideViewer?.querySelector('#slide-canvas');
 const slideImg = slideViewer?.querySelector('#slide-img');
 const slideLoading = slideViewer?.querySelector('#slide-loading');
 const slidePrevBtn = slideViewer?.querySelector('#slide-prev');
@@ -376,15 +375,11 @@ const slideJumpPrev = slideViewer?.querySelector('#slide-jump-prev');
 const slideJumpPrevTitle = slideViewer?.querySelector('#slide-jump-prev-title');
 const slideReplayBtn = slideViewer?.querySelector('#slide-replay-btn');
 
-let currentPdfDoc = null;
 let currentSlidePages = null;
 const slideImgCache = new Map();
 let slideRenderToken = 0;
-let currentPdfPage = 1;
-let totalPdfPages = 0;
-let isRendering = false;
-let pendingPage = null;
-let currentRenderTask = null;
+let currentSlidePage = 1;
+let totalSlidePages = 0;
 let catalogData = null;
 let currentSlideMeta = {
   id: '',
@@ -412,11 +407,6 @@ function slidesListFromMeta(meta) {
   return null;
 }
 
-function pdfBasePrefix() {
-  const baseEl = document.querySelector('#command-search');
-  return (new URL(baseEl?.dataset.searchIndex || location.href, location.href).pathname.split('/static/')[0] || '').replace(/\/+$/, '');
-}
-
 function neighborDecksFromCatalog(eid) {
   if (!catalogData || !eid) return null;
   const groups = catalogData.groups || [];
@@ -427,7 +417,6 @@ function neighborDecksFromCatalog(eid) {
     if (eps.some(ep => ep.id === eid)) topicSlideEps = eps;
     allSlideEps.push(...eps);
   }
-  const base = pdfBasePrefix();
   const findPrevNext = (list, targetId) => {
     const idx = list.findIndex(x => x.id === targetId);
     return {
@@ -439,7 +428,7 @@ function neighborDecksFromCatalog(eid) {
   const globalRel = findPrevNext(allSlideEps, eid);
   const pack = (ep) => ep ? {
     id: ep.id,
-    url: `${base}/assets/slides/${ep.id}.pdf`,
+    url: ep.id,
     prefix: ep.sp || '',
     count: String(ep.sc || ''),
     title: ep.h || ''
@@ -448,15 +437,6 @@ function neighborDecksFromCatalog(eid) {
     prev: pack(topicRel.prev || globalRel.prev),
     next: pack(topicRel.next || globalRel.next)
   };
-}
-
-async function getPdfjs() {
-  if (window.pdfjsLib) return window.pdfjsLib;
-  const base = pdfBasePrefix();
-  const lib = await import(base + '/vendor/pdf.min.mjs');
-  lib.GlobalWorkerOptions.workerSrc = base + '/vendor/pdf.worker.min.mjs';
-  window.pdfjsLib = lib;
-  return lib;
 }
 
 function showEndCard() {
@@ -543,9 +523,15 @@ function preloadSlideUrl(url) {
   const im = new Image();
   im.decoding = 'async';
   im.src = url;
-  const p = (im.decode ? im.decode() : new Promise((res, rej) => { im.onload = res; im.onerror = rej; })).catch(() => {});
-  slideImgCache.set(url, p);
-  return p;
+  const promise = (im.decode ? im.decode() : new Promise((resolve, reject) => {
+    im.onload = resolve;
+    im.onerror = reject;
+  })).catch(error => {
+    slideImgCache.delete(url);
+    throw error;
+  });
+  slideImgCache.set(url, promise);
+  return promise;
 }
 
 function preloadSlideImg(pageNum) {
@@ -553,7 +539,7 @@ function preloadSlideImg(pageNum) {
   return preloadSlideUrl(currentSlidePages[pageNum - 1]);
 }
 
-async function openSlideViewer(pdfUrl, title, meta = {}) {
+async function openSlideViewer(deckId, title, meta = {}) {
   if (!slideViewer) return;
   slideRenderToken++;
   slideViewer.showModal();
@@ -569,7 +555,7 @@ async function openSlideViewer(pdfUrl, title, meta = {}) {
   currentSlidePages = slidesListFromMeta(meta);
   currentSlideMeta = {
     id: meta.slideId || '',
-    url: pdfUrl,
+    url: deckId,
     title: title || '漫画幻灯片',
     prevSlides: meta.prevSlides || '',
     prevId: meta.prevId || '',
@@ -583,133 +569,62 @@ async function openSlideViewer(pdfUrl, title, meta = {}) {
     nextTitle: meta.nextTitle || ''
   };
 
-  if (currentSlidePages && slideImg) {
-    currentPdfDoc = null;
-    if (slideCanvas) slideCanvas.hidden = true;
-    slideImg.hidden = false;
-    totalPdfPages = currentSlidePages.length;
-    if (slidePageCount) slidePageCount.textContent = String(totalPdfPages);
-    currentPdfPage = 1;
-    await renderSlidePage(1);
+  if (!currentSlidePages || !slideImg) {
+    slideLoading.replaceChildren(element('span', '这套幻灯片尚未就绪，请稍后重试。'));
+    if (slidePrevBtn) slidePrevBtn.disabled = true;
+    if (slideNextBtn) slideNextBtn.disabled = true;
+    if (slideImg) slideImg.hidden = true;
     return;
   }
-
-  if (slideImg) slideImg.hidden = true;
-  if (slideCanvas) slideCanvas.hidden = false;
-
-  try {
-    const pdfjs = await getPdfjs();
-    const loadingTask = pdfjs.getDocument(pdfUrl);
-    currentPdfDoc = await loadingTask.promise;
-    totalPdfPages = currentPdfDoc.numPages;
-    if (slidePageCount) slidePageCount.textContent = String(totalPdfPages);
-    currentPdfPage = 1;
-    renderSlidePage(currentPdfPage);
-  } catch (err) {
-    console.error('Slide viewer load error:', err);
-    if (slideLoading) {
-      slideLoading.replaceChildren(element('span', '幻灯片在线解析失败，请点击右上角下载后查看。'));
-    }
-  }
+  slideImg.hidden = true;
+  totalSlidePages = currentSlidePages.length;
+  if (slidePageCount) slidePageCount.textContent = String(totalSlidePages);
+  currentSlidePage = 1;
+  await renderSlidePage(1);
 }
 
 async function renderSlidePage(num) {
-  if (currentSlidePages && slideImg) {
-    const token = ++slideRenderToken;
-    const idx = Math.max(1, Math.min(num, currentSlidePages.length));
-    const url = currentSlidePages[idx - 1];
-    await preloadSlideImg(idx);
-    if (token !== slideRenderToken || !slideViewer?.open) return;
-    slideImg.src = url;
-    currentPdfPage = idx;
-    if (slidePageNum) slidePageNum.textContent = String(idx);
-    if (slidePrevBtn) slidePrevBtn.disabled = idx <= 1;
-    if (slideNextBtn) slideNextBtn.disabled = idx >= totalPdfPages;
-    if (slideLoading) slideLoading.hidden = true;
-    if (idx === totalPdfPages) showEndCard(); else hideEndCard();
-    preloadSlideImg(idx + 1);
-    preloadSlideImg(idx + 2);
-    return;
-  }
-
-  if (!currentPdfDoc || !slideCanvas) return;
-  if (isRendering) {
-    pendingPage = num;
-    if (currentRenderTask) {
-      try { currentRenderTask.cancel(); } catch {}
-    }
-    return;
-  }
-  isRendering = true;
-  if (!currentPdfPage && slideLoading) slideLoading.hidden = false;
-
+  if (!currentSlidePages || !slideImg) return;
+  const token = ++slideRenderToken;
+  const idx = Math.max(1, Math.min(num, currentSlidePages.length));
+  const url = currentSlidePages[idx - 1];
   try {
-    const page = await currentPdfDoc.getPage(num);
-    const box = slideCanvasBox || slideCanvas.parentElement;
-    const boxRect = box.getBoundingClientRect();
-    const unscaledViewport = page.getViewport({ scale: 1 });
-
-    const availWidth = Math.max(280, boxRect.width - 24);
-    const availHeight = Math.max(180, boxRect.height - 24);
-    const scale = Math.min(availWidth / unscaledViewport.width, availHeight / unscaledViewport.height);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    const viewport = page.getViewport({ scale });
-
-    // Double-buffering: render onto offscreen canvas first to eliminate blank strobe
-    const offscreen = document.createElement('canvas');
-    offscreen.width = Math.floor(viewport.width * dpr);
-    offscreen.height = Math.floor(viewport.height * dpr);
-    const offCtx = offscreen.getContext('2d');
-    offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    currentRenderTask = page.render({ canvasContext: offCtx, viewport });
-    await currentRenderTask.promise;
-    currentRenderTask = null;
-
-    // Seamlessly swap in one frame
-    slideCanvas.width = offscreen.width;
-    slideCanvas.height = offscreen.height;
-    slideCanvas.style.width = Math.floor(viewport.width) + 'px';
-    slideCanvas.style.height = Math.floor(viewport.height) + 'px';
-    const ctx = slideCanvas.getContext('2d');
-    ctx.drawImage(offscreen, 0, 0);
-
-    currentPdfPage = num;
-    if (slidePageNum) slidePageNum.textContent = String(num);
-    if (slidePrevBtn) slidePrevBtn.disabled = num <= 1;
-    if (slideNextBtn) slideNextBtn.disabled = num >= totalPdfPages;
-
-    if (num === totalPdfPages) {
-      showEndCard();
-    } else {
-      hideEndCard();
-    }
-  } catch (err) {
-    if (err?.name !== 'RenderingCancelledException') {
-      console.error('Render error:', err);
-    }
-  } finally {
-    isRendering = false;
-    if (slideLoading) slideLoading.hidden = true;
-    if (pendingPage !== null) {
-      const p = pendingPage;
-      pendingPage = null;
-      renderSlidePage(p);
-    }
+    await preloadSlideImg(idx);
+  } catch {
+    if (token !== slideRenderToken || !slideViewer?.open) return;
+    const retry = element('button', '重新载入');
+    retry.type = 'button';
+    retry.className = 'slide-btn';
+    retry.addEventListener('click', () => renderSlidePage(idx), {once: true});
+    slideLoading.hidden = false;
+    slideLoading.replaceChildren(element('span', '图片暂时无法载入'), retry);
+    return;
   }
+  if (token !== slideRenderToken || !slideViewer?.open) return;
+  slideImg.src = url;
+  slideImg.hidden = false;
+  slideImg.alt = `${currentSlideMeta.title}，第 ${idx} 页`;
+  currentSlidePage = idx;
+  if (slidePageNum) slidePageNum.textContent = String(idx);
+  if (slidePrevBtn) slidePrevBtn.disabled = idx <= 1;
+  if (slideNextBtn) slideNextBtn.disabled = idx >= totalSlidePages;
+  if (slideLoading) slideLoading.hidden = true;
+  if (idx === totalSlidePages) showEndCard(); else hideEndCard();
+  preloadSlideImg(idx + 1).catch(() => {});
+  preloadSlideImg(idx + 2).catch(() => {});
 }
 
 function prevSlide() {
-  if (currentPdfPage > 1) {
+  if (currentSlidePage > 1) {
     hideEndCard();
-    renderSlidePage(currentPdfPage - 1);
+    renderSlidePage(currentSlidePage - 1);
   }
 }
 
 function nextSlide() {
-  if (currentPdfPage < totalPdfPages) {
-    renderSlidePage(currentPdfPage + 1);
-  } else if (currentPdfPage === totalPdfPages) {
+  if (currentSlidePage < totalSlidePages) {
+    renderSlidePage(currentSlidePage + 1);
+  } else if (currentSlidePage === totalSlidePages) {
     showEndCard();
   }
 }
@@ -740,16 +655,16 @@ function toggleSlideFullscreen() {
     if (req) {
       req.call(slideViewer).then(() => {
         updateFsButton(true);
-        setTimeout(() => renderSlidePage(currentPdfPage), 100);
+        setTimeout(() => renderSlidePage(currentSlidePage), 100);
       }).catch(() => {
         slideViewer.classList.add('is-fullscreen');
         updateFsButton(true);
-        renderSlidePage(currentPdfPage);
+        renderSlidePage(currentSlidePage);
       });
     } else {
       slideViewer.classList.add('is-fullscreen');
       updateFsButton(true);
-      renderSlidePage(currentPdfPage);
+      renderSlidePage(currentSlidePage);
     }
   } else {
     const exit = document.exitFullscreen ||
@@ -761,19 +676,19 @@ function toggleSlideFullscreen() {
     }
     slideViewer.classList.remove('is-fullscreen');
     updateFsButton(false);
-    setTimeout(() => renderSlidePage(currentPdfPage), 100);
+    setTimeout(() => renderSlidePage(currentSlidePage), 100);
   }
 }
 
 document.addEventListener('fullscreenchange', () => {
   const inFs = Boolean(document.fullscreenElement);
   updateFsButton(inFs);
-  if (slideViewer?.open) renderSlidePage(currentPdfPage);
+  if (slideViewer?.open) renderSlidePage(currentSlidePage);
 });
 document.addEventListener('webkitfullscreenchange', () => {
   const inFs = Boolean(document.webkitFullscreenElement);
   updateFsButton(inFs);
-  if (slideViewer?.open) renderSlidePage(currentPdfPage);
+  if (slideViewer?.open) renderSlidePage(currentSlidePage);
 });
 
 slideFsBtn?.addEventListener('click', toggleSlideFullscreen);
@@ -782,11 +697,7 @@ function closeSlideViewer() {
   if (isSlideFs()) {
     toggleSlideFullscreen();
   }
-  if (currentRenderTask) {
-    try { currentRenderTask.cancel(); } catch {}
-    currentRenderTask = null;
-  }
-  currentPdfDoc = null;
+  slideRenderToken++;
   currentSlidePages = null;
   hideEndCard();
   if (slideViewer?.open) slideViewer.close();
@@ -811,14 +722,14 @@ slideViewer?.addEventListener('keydown', event => {
     renderSlidePage(1);
   } else if (event.key === 'End') {
     event.preventDefault();
-    renderSlidePage(totalPdfPages);
+    renderSlidePage(totalSlidePages);
   }
 });
 
 // Click left / right sides of canvas/image to navigate
 slideCanvasBox?.addEventListener('click', event => {
   if (slideEndCard && !slideEndCard.hidden && slideEndCard.contains(event.target)) return;
-  if (event.target === slideCanvas || event.target === slideImg) {
+  if (event.target === slideImg) {
     const rect = event.target.getBoundingClientRect();
     const x = event.clientX - rect.left;
     if (x < rect.width * 0.4) prevSlide();
@@ -845,9 +756,9 @@ slideCanvasBox?.addEventListener('touchend', event => {
 // Resize re-render
 let resizeTimer;
 window.addEventListener('resize', () => {
-  if (slideViewer?.open && currentPdfDoc) {
+  if (slideViewer?.open && currentSlidePages) {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => renderSlidePage(currentPdfPage), 150);
+    resizeTimer = setTimeout(() => renderSlidePage(currentSlidePage), 150);
   }
 });
 
@@ -992,7 +903,7 @@ document.querySelectorAll('[data-open-catalog]').forEach(btn => {
 document.querySelectorAll('[data-open-slides]').forEach(btn => {
   const warmSlide = () => {
     const p = btn.dataset.slidePrefix;
-    if (p && Number(btn.dataset.slideCount) > 0) preloadSlideUrl((p.endsWith('/') ? p : p + '/') + '1.webp');
+    if (p && Number(btn.dataset.slideCount) > 0) preloadSlideUrl((p.endsWith('/') ? p : p + '/') + '1.webp').catch(() => {});
   };
   btn.addEventListener('pointerenter', warmSlide, { once: true });
   btn.addEventListener('focus', warmSlide, { once: true });

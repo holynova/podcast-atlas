@@ -2,7 +2,7 @@
 
 ## 当前规则（2026-10-22更新）
 
-每5小时续做一次，两账号合计目标20套漫画幻灯片（两账号各10套）。先整理文字讲解并发布，再逐步补齐PDF和选图；文字成功不依赖幻灯片成功。每轮优先尝试尚未完成的讲解，幻灯片优先补已有文字的单集。单集或账号失败则持久化记录并按规则退避，在下一个5小时窗口重试。
+每5小时续做一次，两账号合计目标20套漫画幻灯片（两账号各10套）。先整理文字讲解并发布，再逐步补齐幻灯片图片和选图；文字成功不依赖幻灯片成功。每轮优先尝试尚未完成的讲解，幻灯片优先补已有文字的单集。单集或账号失败则持久化记录并按规则退避，在下一个5小时窗口重试。
 
 ```bash
 cd /Users/sym/code/podcast-atlas
@@ -12,7 +12,7 @@ python3 scripts/cycle.py --plan-only
 python3 scripts/cycle.py --text-only --article-limit 5 --wait-minutes 150
 # 第二阶段：同周期复用目标与已整理文字，补齐最多20套幻灯片（两账号各10套）：
 python3 scripts/cycle.py --slide-limit 20 --article-limit 5 --wait-minutes 150
-# 结束后校对新PDF和插图，再发布补齐版。
+# 结束后校对新幻灯片图片和插图，再发布补齐版。
 ```
 
 文字阶段结束后先发布，之后再运行幻灯片阶段，避免文字等待PPT。两个阶段和中间发布共用同一150分钟续做窗口，第二次调用不会重置预算；制作进程与部署命令顺序执行。
@@ -36,7 +36,7 @@ python3 scripts/cycle.py --slide-limit 20 --article-limit 5 --wait-minutes 150
 
 ## 校对与公开发布
 
-网站状态分为“文字待整理”“文字已整理、幻灯片待补”“文字 + 幻灯片”。文字讲解可以独立上线；幻灯片生成成功后还须下载校验PDF、校对姓名和数字、检查插图，再补入网站。complete仅表示文字与PDF齐备，publication_status=verified仅在真实HTTPS校验通过后写入。
+网站状态分为“文字待整理”“文字已整理、幻灯片待补”“文字 + 幻灯片”。文字讲解可以独立上线；幻灯片生成成功后还须将临时输入转为完整图片、校对姓名和数字、检查插图，再补入网站。complete仅表示文字与图片清单齐备，publication_status=verified仅在真实HTTPS校验通过后写入。
 
 ```bash
 npm run build
@@ -48,7 +48,7 @@ npm run deploy:check
 
 实际网站：https://xiaosang.cc/podcast-atlas/ 。Cloudflare达到100个Custom Domains上限，因此保留独立podcast-atlas Worker与xiaosang.cc/podcast-atlas路径路由、worker.js、wrangler.jsonc和base_path，不改其他项目路由。有效的作品集、GitHub Profile、二维码和仓库Homepage复用。
 
-部署后运行 `python3 scripts/record_deployment.py --deployment-id 实际部署ID`，校验首页版本、播客专题、搜索目录、单集、PDF哈希和插图后，才记录源码SHA与上线状态。若认证网络失败，可使用NODE_OPTIONS=--dns-result-order=ipv4first；真正凭据失效才需要用户登录。
+部署后运行 `python3 scripts/record_deployment.py --deployment-id 实际部署ID`，校验首页版本、播客专题、搜索目录、单集、全部幻灯片图片哈希和插图后，才记录源码SHA与上线状态。若认证网络失败，可使用NODE_OPTIONS=--dns-result-order=ipv4first；真正凭据失效才需要用户登录。
 
 ## 本地进度
 
@@ -56,7 +56,13 @@ npm run deploy:check
 - state/accounts/account-b.json：第二账号的独立记录。
 - state/queue.json：固定现有节目目录，不含逐字稿正文。
 - content/*.json：加工后的文字讲解。
-- assets/slides/*.pdf 与 assets/illustrations/：经过校对的幻灯片和选图。
+- assets/slide-decks.json、work/site-slides/ 与 assets/illustrations/：经过校对的幻灯片和选图。
 - work/：临时来源、诊断材料和历史计划，仅本地保留。
 
 用户手动重试时记录manual_retry_watch：check_not_before之前不查询该笔记本，核实结果前不新建重复任务。诊断产物ID列入diagnostic_artifact_ids，禁止当正式成品发布。所有现有文稿与成品都完成后关闭自动化。
+
+## 纯图片交付（2026-11-22）
+
+网站只展示 WebP 幻灯片，不发布、查看或下载 PDF。完成依据是 `assets/slide-decks.json` 中的整套图片清单及文字，不能以本地 PDF 是否存在判断或重新提交已完成任务。NotebookLM 的 PDF 只作为临时转换输入保存在 `work/slide-inputs/`；全部输出图片通过上线哈希验证后自动删除对应输入。生成、转换、状态写入及发布仍遵守现有锁与额度规则。
+
+图片清单入 Git，完整页图片缓存位于被忽略的 `work/site-slides/`。构建缺少图片时，从已发布 HTTPS 地址恢复并验证 SHA-256；恢复失败则停止发布，避免丢失旧页面。新生成且未上线的图片必须保留。`npm run build` 可重建 `dist/`，macOS 优先采用 APFS 写时复制，避免重复占用。Wrangler 按内容复用已上传文件，每次仍提交完整资源清单，不能只部署新增文件目录。旧 Git 历史不在本次改写范围。

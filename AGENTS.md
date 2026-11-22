@@ -2,18 +2,24 @@
 
 - 唯一源码分支main。/Users/sym/code/my-data/xiaoyuzhou仅只读；不修改私有项目，不抓新节目，不将原文、认证或内部错误日志放入仓库或dist。
 - 先读PLAN.md、config.json、state/progress.json与state/queue.json。当前调度每5小时一次，两账号合计目标20套幻灯片（两账号各10套）；旧“每天13:00、10集”及“每轮5套”已被替代。
-- 第一阶段运行 `python3 scripts/cycle.py --text-only --article-limit 5 --wait-minutes 150`，结束后先校对并发布文字；第二阶段运行 `python3 scripts/cycle.py --slide-limit 20 --article-limit 5 --wait-minutes 150`，结束后校对PDF与选图再发布。两阶段及中间发布共用150分钟窗口，不重置预算。state/progress.json.cycles保存周期目标，同周期重跑不追加、不重复提交；失败则持久化记录并在下一个5小时窗口重试。
+- 第一阶段运行 `python3 scripts/cycle.py --text-only --article-limit 5 --wait-minutes 150`，结束后先校对并发布文字；第二阶段运行 `python3 scripts/cycle.py --slide-limit 20 --article-limit 5 --wait-minutes 150`，结束后校对整套图片与选图再发布。两阶段及中间发布共用150分钟窗口，不重置预算。state/progress.json.cycles保存周期目标，同周期重跑不追加、不重复提交；失败则持久化记录并在下一个5小时窗口重试。
 - 用户主动要求并行预生产网页文字时，可另建state/progress.json.text_batches批次，按专题分配互不重复的单集，由明确授权的sub agent直接阅读本地文稿、独立改写content JSON；此类文字批次不受自动化每轮5篇的上限，不占用或更改幻灯片周期目标。所有文章写入仍短暂获取runner.lock，主代理统一校对、同步进度并发布；不并发调用NotebookLM，不把文字就绪记作幻灯片完成。
 - 以PPT/幻灯片制作优先：文字代理批次无论是否处于running状态，均不阻塞cycle.py的幻灯片周期与NotebookLM调度。两账号按各自队列和冷却正常推进PPT生成，本地状态写入依然通过runner.lock互斥保证安全。
-- 各步骤分别记录；complete要求文字及PDF齐备，publication_status=verified要求HTTPS验证通过。排队、提交和下载都不能冒充已上线。失败与历史不能删除；同集同步骤当天最多3次失败，次日保留历史后重置日计数。
+- 各步骤分别记录；complete要求文字及图片清单齐备，publication_status=verified要求HTTPS验证通过。排队、提交和下载都不能冒充已上线。失败与历史不能删除；同集同步骤当天最多3次失败，次日保留历史后重置日计数。
 - NotebookLM制作和排查只用nlm CLI。详细中文、丁丁历险记漫画风格，一集一套、指定单集source ID。两账号独立保存认证上下文、来源、笔记本、产物ID和冷却，不切换CLI保存的全局默认账号。
 - default优先中国互联网故事；account-b优先苹果公司简史5集、再日本漫画史7集，并保留百度上半场补齐。config.json.account_b_series_ids是明确队列；QQ已由default完成时记superseded，禁止重复制作。
 - 每个账号允许并发提交最多10个在途生成任务，提交间隔约1分钟（60秒）；首20分钟不查状态，此后每5分钟查一次，每轮每笔记本只查一次。普通CLI请求至少间隔15秒。明确Quota/Rate Limit耗尽时按5小时或实际Usage恢复时间退避；单集云端偶发失败（status=4）不冻结全账号，退避1分钟后允许队列继续并发推进，同集当天最多3次尝试。禁止为了凑目标绕过真实冷却或失败上限。
 - 每周期每集最多一次提交机会，提交前持久化记录；结果不明先查远端。手动重试遵守manual_retry_watch，check_not_before前不查询，核实结果前不重复提交。diagnostic_artifact_ids禁止当正式成品使用。
 - 协调器同时管理两账号的远端任务，本地写进度共用runner.lock；等待时释放锁，不绕过锁并发覆盖主进度。生成与部署不得同时进行。
-- 文字用短句和常用词；校对同音人名、日期、金额、引用及PDF选图。文字已整理但幻灯片未齐时明确显示等待状态，不用装饰占位图冒充插图。
+- 文字用短句和常用词；校对同音人名、日期、金额、引用及幻灯片选图。文字已整理但幻灯片未齐时明确显示等待状态，不用装饰占位图冒充插图。
 - 界面设计与排版：Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining. 坚决去除多余的装饰性次级英文小标签（如全大写 eyebrow）、重复解释文案和不必要的辅助提示；依靠留白、字体层级、结构网格和布局本身清晰表达层级关系与交互意图。保持舒适的阅读字体大小，正文与内容字号适度放大。
 - 网站专题按“播客 + 专题”隔离，统计与下一集导航不得串播客。搜索只索引公开目录与加工后的讲解。
 - 使用hn-project-publisher发布，用户已授权更新。仅暂存明确文件、提交推送main成功，再从同一提交用锁定Wrangler手动部署；不创建发布分支、GitHub Actions或Workers Git自动部署。
 - 网站为https://xiaosang.cc/podcast-atlas/，保留podcast-atlas Worker、主域名路径路由、base_path、worker.js与wrangler.jsonc；不改其他项目路由。作品集master的有效条目与GitHub Profile复用。
-- 部署后运行record_deployment.py，通过专题、搜索、单集、PDF和图片HTTPS检查才记verified。全部现有文稿及产物完成后关闭自动化。
+- 部署后运行record_deployment.py，通过专题、搜索、单集和全部幻灯片图片HTTPS检查才记verified。全部现有文稿及产物完成后关闭自动化。
+
+## 纯图片交付（2026-11-22）
+
+网站只展示 WebP 幻灯片，不发布、查看或下载 PDF。完成依据是 `assets/slide-decks.json` 中的整套图片清单及文字，不能以本地 PDF 是否存在判断或重新提交已完成任务。NotebookLM 的 PDF 只作为临时转换输入保存在 `work/slide-inputs/`；全部输出图片通过上线哈希验证后自动删除对应输入。生成、转换、状态写入及发布仍遵守现有锁与额度规则。
+
+图片清单入 Git，完整页图片缓存位于被忽略的 `work/site-slides/`。构建缺少图片时，从已发布 HTTPS 地址恢复并验证 SHA-256；恢复失败则停止发布，避免丢失旧页面。新生成且未上线的图片必须保留。`npm run build` 可重建 `dist/`，macOS 优先采用 APFS 写时复制，避免重复占用。Wrangler 按内容复用已上传文件，每次仍提交完整资源清单，不能只部署新增文件目录。旧 Git 历史不在本次改写范围。
