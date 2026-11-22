@@ -1,7 +1,7 @@
 <p align="right"><a href="README.en.md">English</a></p>
 
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="播客图解 Podcast Atlas — 把长故事，读成一张清晰的地图：半拿铁与知行小酒馆的中文图文知识库，329 已整理单集">
+  <img src="./assets/readme/hero.svg" width="100%" alt="播客图解 Podcast Atlas — 把长故事，读成一张清晰的地图：半拿铁与知行小酒馆的中文图文知识库，364 已整理单集">
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
 ## 截图
 
 <p align="center">
-  <img src="./assets/readme/screenshot-home.png" width="100%" alt="播客图解首页：把长故事读成一张清晰的地图，329 已整理单集、510 单集总数、12 深度专题，右侧是苹果简史漫画幻灯片封面">
+  <img src="./assets/readme/screenshot-home.png" width="100%" alt="播客图解首页：把长故事读成一张清晰的地图，364 已整理单集、510 单集总数、12 深度专题，右侧是苹果简史漫画幻灯片封面">
 </p>
 
 ## 收录规模
@@ -24,9 +24,9 @@
 |---|---:|---:|
 | 半拿铁 | 9 个 | 239 集 |
 | 知行小酒馆 | 3 个 | 271 集 |
-| **合计** | **12 个深度专题** | **510 集，329 集已整理** |
+| **合计** | **12 个深度专题** | **510 集，364 集已整理** |
 
-数量以仓库 `content/` 的 329 份单集讲解与线上首页统计为准（2026-11-17）。漫画幻灯片 356 套（PDF），插图 2,494 张。
+数量以仓库 `content/` 的 364 份单集讲解与线上首页统计为准（2026-11-22）。漫画幻灯片 426 套（PDF），插图 2,983 张。
 
 ## 每集包含什么
 
@@ -62,9 +62,9 @@ app.js                前端交互：筛选、搜索、灯箱
 search.js             搜索分片加载
 style.css             全站样式
 config.json           站点配置（域名、路径、生产节奏）
-content/              329 份单集讲解（JSON，一集一份）
-assets/slides/        356 套漫画幻灯片（PDF）
-assets/illustrations/ 2,494 张漫画插图（webp）
+content/              364 份单集讲解（JSON，一集一份）
+assets/slides/        426 套漫画幻灯片（PDF）
+assets/illustrations/ 2,983 张漫画插图（webp）
 scripts/build.py      构建脚本：生成静态站
 scripts/cycle.py      生产周期脚本（每 5 小时一轮）
 scripts/pipeline.py   内容生产流水线
@@ -75,3 +75,7 @@ vendor/               内置 PDF 阅读器
 ## 声明
 
 网页讲解与漫画为 AI 辅助整理，可能存在识别或生成错误；每集保留原节目入口及回听时间。完整原始逐字稿不属于公开产物。
+
+运行 `npm run build` 构建当前公开资料。在发布窗口将源码推送到 `main` 后，运行 `npm run deploy:check` 与 `npm run deploy`。
+
+<a href="https://xiaosang.cc/podcast-atlas/"><img src="assets/readme/qr.png" width="112" alt="扫码打开网站"></a>

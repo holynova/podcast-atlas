@@ -2,7 +2,7 @@
      width="1200" height="360" viewBox="0 0 1200 360"
      role="img" aria-labelledby="title desc">
   <title id="title">播客图解 Podcast Atlas — 把长故事，读成一张清晰的地图</title>
-  <desc id="desc">暖纸底横幅：播客图解，副标题把长故事读成一张清晰的地图；右侧是一张知识地图示意：五个节点由连线串成时间线，节点间还有因果连线，象征时间线、人物关系与因果链；底部是 329 已整理单集、510 单集总数、12 深度专题三个标签。</desc>
+  <desc id="desc">暖纸底横幅：播客图解，副标题把长故事读成一张清晰的地图；右侧是一张知识地图示意：五个节点由连线串成时间线，节点间还有因果连线，象征时间线、人物关系与因果链；底部是 364 已整理单集、510 单集总数、12 深度专题三个标签。</desc>
 
   <rect width="1200" height="360" rx="26" fill="#f6f1e7"/>
 
@@ -13,7 +13,7 @@
     <text x="56" y="210" font-size="19" fill="#6f675c">半拿铁 × 知行小酒馆的中文图文知识库</text>
     <text x="56" y="240" font-size="18" fill="#6f675c">按专题阅读：时间线、人物关系、因果链与中文漫画幻灯片。</text>
     <g id="chips" font-size="18" fill="#2b2622" text-anchor="middle">
-      <g><rect x="56" y="266" width="150" height="36" rx="18" fill="#efe6d4" stroke="#d8cbb2" stroke-width="1.5"/><text x="131" y="290">329 已整理单集</text></g>
+      <g><rect x="56" y="266" width="150" height="36" rx="18" fill="#efe6d4" stroke="#d8cbb2" stroke-width="1.5"/><text x="131" y="290">364 已整理单集</text></g>
       <g><rect x="218" y="266" width="150" height="36" rx="18" fill="#efe6d4" stroke="#d8cbb2" stroke-width="1.5"/><text x="293" y="290">510 单集总数</text></g>
       <g><rect x="380" y="266" width="130" height="36" rx="18" fill="#efe6d4" stroke="#d8cbb2" stroke-width="1.5"/><text x="445" y="290">12 深度专题</text></g>
     </g>

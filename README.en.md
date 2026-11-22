@@ -1,7 +1,7 @@
 <p align="right"><a href="README.md">中文</a></p>
 
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Podcast Atlas — read a long story as a clear map: a Chinese illustrated knowledge base for Half Latte and Zhixing Tavern, 329 episodes explained">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Podcast Atlas — read a long story as a clear map: a Chinese illustrated knowledge base for Half Latte and Zhixing Tavern, 364 episodes explained">
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@ Podcast Atlas turns two Chinese podcasts — 半拿铁 Half Latte and 知行小�
 ## Screenshot
 
 <p align="center">
-  <img src="./assets/readme/screenshot-home.png" width="100%" alt="Podcast Atlas homepage: read a long story as a clear map — 329 episodes explained, 510 episodes total, 12 in-depth topics, with an Apple history comic slide cover on the right">
+  <img src="./assets/readme/screenshot-home.png" width="100%" alt="Podcast Atlas homepage: read a long story as a clear map — 364 episodes explained, 510 episodes total, 12 in-depth topics, with an Apple history comic slide cover on the right">
 </p>
 
 ## Coverage
@@ -24,9 +24,9 @@ Podcast Atlas turns two Chinese podcasts — 半拿铁 Half Latte and 知行小�
 |---|---:|---:|
 | 半拿铁 Half Latte | 9 | 239 |
 | 知行小酒馆 Zhixing Tavern | 3 | 271 |
-| **Total** | **12 in-depth topics** | **510 episodes, 329 explained** |
+| **Total** | **12 in-depth topics** | **510 episodes, 364 explained** |
 
-Counts follow the 329 episode explainers in the repo's `content/` and the live homepage stats (2026-11-17). Comic slide decks: 356 sets (PDF); illustrations: 2,494.
+Counts follow the 364 episode explainers in the repo's `content/` and the live homepage stats (2026-11-22). Comic slide decks: 426 sets (PDF); illustrations: 2,983.
 
 ## What's in an Episode
 
@@ -62,9 +62,9 @@ app.js                Frontend interactions: filters, search, lightbox
 search.js             Search index chunk loading
 style.css             Site-wide styles
 config.json           Site config (domain, paths, production cadence)
-content/              329 episode explainers (JSON, one per episode)
-assets/slides/        356 comic slide decks (PDF)
-assets/illustrations/ 2,494 comic illustrations (webp)
+content/              364 episode explainers (JSON, one per episode)
+assets/slides/        426 comic slide decks (PDF)
+assets/illustrations/ 2,983 comic illustrations (webp)
 scripts/build.py      Build script: generates the static site
 scripts/cycle.py      Production cycle script (one round every 5 hours)
 scripts/pipeline.py   Content production pipeline
@@ -75,3 +75,7 @@ vendor/               Built-in PDF reader
 ## Disclaimer
 
 Explainers and comics are AI-assisted and may contain recognition or generation errors; each episode keeps a link to the original show and a listen-back timestamp. Full original transcripts are not part of the public site.
+
+Build the current public library with `npm run build`. After pushing the approved source to `main`, the release owner runs `npm run deploy:check` and `npm run deploy` during the publication window.
+
+<a href="https://xiaosang.cc/podcast-atlas/"><img src="assets/readme/qr.png" width="112" alt="Scan to open the site"></a>
