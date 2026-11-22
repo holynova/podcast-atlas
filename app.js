@@ -360,7 +360,6 @@ const slideViewer = document.querySelector('#slide-viewer');
 const slideTitle = slideViewer?.querySelector('#slide-title');
 const slidePageNum = slideViewer?.querySelector('#slide-page-num');
 const slidePageCount = slideViewer?.querySelector('#slide-page-count');
-const slideDownloadBtn = slideViewer?.querySelector('#slide-download-btn');
 const slideFsBtn = slideViewer?.querySelector('#slide-fs-btn');
 const slideCloseBtn = slideViewer?.querySelector('[data-close-slides]');
 const slideCanvas = slideViewer?.querySelector('#slide-canvas');
@@ -559,7 +558,6 @@ async function openSlideViewer(pdfUrl, title, meta = {}) {
   slideRenderToken++;
   slideViewer.showModal();
   if (slideTitle) slideTitle.textContent = title || '漫画幻灯片';
-  if (slideDownloadBtn) slideDownloadBtn.href = pdfUrl;
   if (slideLoading) {
     slideLoading.hidden = false;
     slideLoading.replaceChildren(element('span', '正在载入幻灯片…'));
