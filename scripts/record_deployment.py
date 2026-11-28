@@ -1,5 +1,5 @@
 """Only mark publication verified after real HTTPS checks pass."""
-import argparse, fcntl, hashlib, json, pathlib, subprocess
+import argparse, fcntl, hashlib, html, json, pathlib, subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pipeline import now, write_json, network_env
 from publication_assets import hash_static_manifest_files, reusable_static_assets, verified_unchanged_asset
@@ -120,7 +120,8 @@ def verify_and_record(root, deployment_id, full_verify=False, topic_groups=None,
         reused = []
         article = json.loads(file.read_text())
         eid = file.stem
-        if article['headline'].encode() not in get('/episodes/' + eid + '/', 'text/html'):
+        page = get('/episodes/' + eid + '/', 'text/html')
+        if article['headline'].encode() not in page and html.escape(article['headline'], quote=True).encode() not in page:
             raise RuntimeError('Live article mismatch: ' + eid)
         for image in sorted((root / 'assets/illustrations' / eid).glob('*.webp')):
             if not full_verify and verified_unchanged_asset(root, image, eid, previous):

@@ -167,3 +167,13 @@ class RecordDeploymentTests(unittest.TestCase):
             self.assertIn('https://example.test/site/static/deck1/2.webp', fetched3)
             self.assertIn('https://example.test/site/static/deck1/3.webp', fetched3)
             self.assertEqual(summary3, {'verified_episodes': 1, 'static_total': 3, 'static_fetched': 3, 'static_reused': 0})
+
+    def test_verify_accepts_html_escaped_headline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            live_map = self._build_fixture(root)
+            (root / 'content/ep1.json').write_text(json.dumps({'headline': 'ZARA、H&M与GAP'}))
+            live_map['https://example.test/site/episodes/ep1/'] = ('<h1>ZARA、H&amp;M与GAP</h1>'.encode(), 'text/html')
+
+            summary, _ = self._run_with_fake_batch(root, 'dep-esc', 'sha-esc', live_map)
+            self.assertEqual(summary['verified_episodes'], 1)
